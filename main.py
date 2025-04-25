@@ -2,9 +2,13 @@ from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler
 import os
+import logging
+import requests
 
-# Get token from environment
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+# Your bot token and Render URL
+TOKEN = "7874445351:AAF0pI0tuwPvTQT2wS-u8nrK96ic9opTdfY"
+RENDER_URL = "https://crypto-bot-3-10.onrender.com"  # Your Render URL
+
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
@@ -24,10 +28,21 @@ def webhook():
     dispatcher.process_update(update)
     return "ok"
 
-# Health check
+# Health check route for Render to ensure it's working
 @app.route("/")
 def index():
     return "Bot is running via webhook."
 
+# Set webhook function
+def set_webhook():
+    webhook_url = f"{RENDER_URL}/{TOKEN}"
+    url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
+    response = requests.get(url)
+    print(response.status_code)
+    print(response.json())
+
+# Set the webhook when the app starts
+set_webhook()
+
 if __name__ == "__main__":
-    app.run(port=5000)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Ensure port matches Render's environment
