@@ -1,33 +1,49 @@
 import os
+import logging
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
-from supabase import create_client, Client
 
-# Supabase setup
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Enable logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Your Telegram user ID (replace with your own ID)
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID")
 
 # Start command
-def start(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    username = update.effective_user.username
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text("Welcome! Bot is active and ready.")
 
-    # Insert into Supabase
-    response = supabase.table("users").insert({"telegram_id": user_id, "username": username}).execute()
+# Error handler
+def error_handler(update: object, context: CallbackContext) -> None:
+    logger.error(msg="Exception while handling an update:", exc_info=context.error)
 
-    update.message.reply_text("Welcome to Let's Crypto! You've been added to the database.")
+    # Send the error to your Telegram account
+    if ADMIN_CHAT_ID:
+        try:
+            context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=f"⚠️ Bot Error:\n{context.error}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to send error to admin: {e}")
 
-# Main bot runner
+# Main function
 def main():
     token = os.environ.get("BOT_TOKEN")
+    if not token:
+        raise ValueError("BOT_TOKEN not set in environment variables")
+
     updater = Updater(token, use_context=True)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_error_handler(error_handler)
 
     updater.start_polling()
     updater.idle()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
