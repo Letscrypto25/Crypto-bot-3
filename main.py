@@ -3,19 +3,19 @@ from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 from telegram.ext import ConversationHandler
 import os
 import requests
-import psycopg2
 from supabase import create_client, Client
+from flask import Flask
 
 # Initialize bot and app
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "7874445351:AAF0pI0tuwPvTQT2wS-u8nrK96ic9opTdfY"  # Your bot token
 RENDER_URL = "https://crypto-bot-3-10.onrender.com"  # Your Render URL
 
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
 # Supabase setup
-url = "https://your.supabase.url"
-key = "YOUR_SUPABASE_KEY"
+url = "https://pqdqcthnimeurvdqpdlu.supabase.co"  # Your Supabase URL
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxZHFjdGhuaW1ldXJ2ZHFwZGx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU1NTk1MjcsImV4cCI6MjA2MTEzNTUyN30.Rjub8T1OPZM0lgOlN57ybMvUpmyj2z8i6rokakx1sWo"  # Your Supabase API Key
 supabase: Client = create_client(url, key)
 
 # States for conversation
