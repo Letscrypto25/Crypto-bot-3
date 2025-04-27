@@ -4,16 +4,17 @@ from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler
 import requests
+import random
 
-# Environment variables
+# Load environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+RENDER_URL = os.getenv("RENDER_URL")
 
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
-# PostgreSQL DB connection
 def get_db_connection():
     conn = psycopg2.connect(
         host=SUPABASE_URL.split("/")[2],
@@ -24,70 +25,98 @@ def get_db_connection():
     )
     return conn
 
-# Dispatcher setup
 dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
 
-# Bot command: /start
+# /start command
 def start(update, context):
-    telegram_id = update.effective_user.id
-    username = update.effective_user.username
-    insert_user_data(telegram_id, username)
-    update.message.reply_text("Welcome! You're now connected.")
+    telegram_id = update.message.chat_id
+    username = update.message.chat.username
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO "Users" (telegram_id, username)
+        VALUES (%s, %s)
+        ON CONFLICT (telegram_id) DO NOTHING
+    """, (telegram_id, username))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    update.message.reply_text("Welcome! Your account is set up.")
 
-dispatcher.add_handler(CommandHandler("start", start))
-
-# Placeholder for future /trade command
+# /trade command
 def trade(update, context):
-    update.message.reply_text("Trade feature coming soon.")
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
+    # Randomly pick a User
+    cursor.execute('SELECT id FROM "Users" ORDER BY RANDOM() LIMIT 1;')
+    user = cursor.fetchone()
+
+    if not user:
+        update.message.reply_text("No users found. Please /start first.")
+        return
+
+    user_id = user[0]
+
+    # Insert a fake trade
+    cursor.execute("""
+        INSERT INTO "Trades" (user_id, platform, coin, amount, buy_price, sell_price, profit, status, strategy)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (user_id, 'Binance', 'BTC', 0.001, 60000, 60200, 2, 'completed', 'arbitrage'))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    update.message.reply_text("Trade inserted!")
+
+# /log_trade command
+def log_trade(update, context):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT id FROM "Trades" ORDER BY RANDOM() LIMIT 1;')
+    trade = cursor.fetchone()
+
+    if not trade:
+        update.message.reply_text("No trades to log. Insert a trade first.")
+        return
+
+    trade_id = trade[0]
+
+    # Insert a trade log
+    cursor.execute("""
+        INSERT INTO "TradeLogs" (trade_id, time_taken, fee, comment)
+        VALUES (%s, %s, %s, %s)
+    """, (trade_id, random.randint(1, 5), random.uniform(0.1, 1.0), "Test log"))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    update.message.reply_text("Trade log inserted!")
+
+# Dispatcher handlers
+dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("trade", trade))
+dispatcher.add_handler(CommandHandler("log_trade", log_trade))
 
-# Webhook endpoint
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
     return "ok"
 
-# Root route (for Render health check)
 @app.route("/")
 def index():
-    return "Bot is running via webhook."
+    return "Bot is running."
 
-# Optional health check
-@app.route("/health")
-def health():
-    return "OK", 200
-
-# Insert user data into DB
-def insert_user_data(telegram_id, username):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO users (telegram_id, username) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-            (telegram_id, username)
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(f"DB Insert Error: {e}")
-
-# Set Telegram webhook on app startup
 def set_webhook():
-    render_url = os.getenv("RENDER_EXTERNAL_URL") or "https://your-render-url.onrender.com"
-    webhook_url = f"{render_url}/{TOKEN}"
+    webhook_url = f"{RENDER_URL}/{TOKEN}"
     url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
-    try:
-        response = requests.get(url)
-        print(response.status_code)
-        print(response.json())
-    except Exception as e:
-        print(f"Webhook setup error: {e}")
+    response = requests.get(url)
+    print(response.status_code)
+    print(response.json())
 
 set_webhook()
 
-# Start app
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
