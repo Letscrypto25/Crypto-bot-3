@@ -16,14 +16,18 @@ bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
 def get_db_connection():
-    conn = psycopg2.connect(
-        host=SUPABASE_URL.split("/")[2],
-        dbname="postgres",
-        user="postgres",
-        password=SUPABASE_KEY,
-        port=5432
-    )
-    return conn
+    try:
+        conn = psycopg2.connect(
+            host=SUPABASE_URL.split("/")[2],
+            dbname="postgres",
+            user="postgres",
+            password=SUPABASE_KEY,
+            port=5432
+        )
+        return conn
+    except Exception as e:
+        print(f"Error connecting to the database: {e}")
+        return None
 
 dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
 
@@ -32,6 +36,11 @@ def start(update, context):
     telegram_id = update.message.chat_id
     username = update.message.chat.username
     conn = get_db_connection()
+
+    if not conn:
+        update.message.reply_text("Error connecting to the database.")
+        return
+
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO "Users" (telegram_id, username)
@@ -46,6 +55,11 @@ def start(update, context):
 # /trade command
 def trade(update, context):
     conn = get_db_connection()
+
+    if not conn:
+        update.message.reply_text("Error connecting to the database.")
+        return
+
     cursor = conn.cursor()
 
     # Randomly pick a User
@@ -72,6 +86,11 @@ def trade(update, context):
 # /log_trade command
 def log_trade(update, context):
     conn = get_db_connection()
+
+    if not conn:
+        update.message.reply_text("Error connecting to the database.")
+        return
+
     cursor = conn.cursor()
 
     cursor.execute('SELECT id FROM "Trades" ORDER BY RANDOM() LIMIT 1;')
