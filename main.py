@@ -99,11 +99,16 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("trade", trade))
 dispatcher.add_handler(CommandHandler("log_trade", log_trade))
 
+# Modify webhook handler to quickly respond and prevent timeouts
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return "ok"
+    try:
+        update = Update.de_json(request.get_json(force=True), bot)
+        dispatcher.process_update(update)
+        return "ok", 200  # Fast response to avoid worker timeouts
+    except Exception as e:
+        print(f"Error processing update: {e}")
+        return "error", 500
 
 @app.route("/")
 def index():
