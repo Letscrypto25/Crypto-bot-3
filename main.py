@@ -19,13 +19,14 @@ app = Flask(__name__)
 # Database connection with timeout for debugging
 def get_db_connection():
     try:
+        # Extracting the host from the Supabase URL
         conn = psycopg2.connect(
-            host=SUPABASE_URL.split("/")[2],
-            dbname="postgres",
-            user="postgres",
-            password=SUPABASE_KEY,
-            port=5432,
-            connect_timeout=5  # Timeout after 5 seconds
+            host=SUPABASE_URL.split("/")[2],  # Extract the host from the URL
+            dbname="postgres",                # Default Supabase DB name
+            user="postgres",                  # Default user for Supabase
+            password=SUPABASE_KEY,            # Using the Supabase API key as the password
+            port=5432,                        # Default Postgres port
+            connect_timeout=5                 # Timeout after 5 seconds for debugging
         )
         return conn
     except Exception as e:
