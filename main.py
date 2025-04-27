@@ -129,6 +129,7 @@ dispatcher.add_handler(CommandHandler("log_trade", log_trade))
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     try:
+        print(f"Received update: {request.get_json(force=True)}")  # Log incoming request
         update = Update.de_json(request.get_json(force=True), bot)
         dispatcher.process_update(update)
         return "ok", 200
