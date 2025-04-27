@@ -15,32 +15,24 @@ RENDER_URL = os.getenv("RENDER_URL")
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
+# Function to connect to the database
 def get_db_connection():
-    try:
-        conn = psycopg2.connect(
-            host=SUPABASE_URL.split("/")[2],
-            dbname="postgres",
-            user="postgres",
-            password=SUPABASE_KEY,
-            port=5432
-        )
-        return conn
-    except Exception as e:
-        print(f"Error connecting to the database: {e}")
-        return None
+    conn = psycopg2.connect(
+        host=SUPABASE_URL.split("/")[2],
+        dbname="postgres",
+        user="postgres",
+        password=SUPABASE_KEY,
+        port=5432
+    )
+    return conn
 
 dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
 
-# /start command
+# /start command to register users
 def start(update, context):
     telegram_id = update.message.chat_id
     username = update.message.chat.username
     conn = get_db_connection()
-
-    if not conn:
-        update.message.reply_text("Error connecting to the database.")
-        return
-
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO "Users" (telegram_id, username)
@@ -52,68 +44,71 @@ def start(update, context):
     conn.close()
     update.message.reply_text("Welcome! Your account is set up.")
 
-# /trade command
+# /trade command to insert a fake trade and check for users
 def trade(update, context):
-    conn = get_db_connection()
+    print("Trade command received!")  # Debugging line to check if /trade is triggered
 
-    if not conn:
-        update.message.reply_text("Error connecting to the database.")
-        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    cursor = conn.cursor()
+        # Randomly pick a User from the database
+        cursor.execute('SELECT id FROM "Users" ORDER BY RANDOM() LIMIT 1;')
+        user = cursor.fetchone()
 
-    # Randomly pick a User
-    cursor.execute('SELECT id FROM "Users" ORDER BY RANDOM() LIMIT 1;')
-    user = cursor.fetchone()
+        if not user:
+            update.message.reply_text("No users found. Please /start first.")
+            return
 
-    if not user:
-        update.message.reply_text("No users found. Please /start first.")
-        return
+        user_id = user[0]
 
-    user_id = user[0]
+        # Insert a fake trade into the database
+        cursor.execute("""
+            INSERT INTO "Trades" (user_id, platform, coin, amount, buy_price, sell_price, profit, status, strategy)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (user_id, 'Binance', 'BTC', 0.001, 60000, 60200, 2, 'completed', 'arbitrage'))
 
-    # Insert a fake trade
-    cursor.execute("""
-        INSERT INTO "Trades" (user_id, platform, coin, amount, buy_price, sell_price, profit, status, strategy)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (user_id, 'Binance', 'BTC', 0.001, 60000, 60200, 2, 'completed', 'arbitrage'))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        update.message.reply_text("Trade inserted!")
+    except Exception as e:
+        print(f"Error occurred while processing /trade: {e}")
+        update.message.reply_text("There was an error while processing your trade.")
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    update.message.reply_text("Trade inserted!")
-
-# /log_trade command
+# /log_trade command to log a trade after it's inserted
 def log_trade(update, context):
-    conn = get_db_connection()
+    print("Log trade command received!")  # Debugging line to check if /log_trade is triggered
 
-    if not conn:
-        update.message.reply_text("Error connecting to the database.")
-        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    cursor = conn.cursor()
+        # Fetch a random trade to log
+        cursor.execute('SELECT id FROM "Trades" ORDER BY RANDOM() LIMIT 1;')
+        trade = cursor.fetchone()
 
-    cursor.execute('SELECT id FROM "Trades" ORDER BY RANDOM() LIMIT 1;')
-    trade = cursor.fetchone()
+        if not trade:
+            update.message.reply_text("No trades to log. Insert a trade first.")
+            return
 
-    if not trade:
-        update.message.reply_text("No trades to log. Insert a trade first.")
-        return
+        trade_id = trade[0]
 
-    trade_id = trade[0]
+        # Insert a trade log into the database
+        cursor.execute("""
+            INSERT INTO "TradeLogs" (trade_id, time_taken, fee, comment)
+            VALUES (%s, %s, %s, %s)
+        """, (trade_id, random.randint(1, 5), random.uniform(0.1, 1.0), "Test log"))
 
-    # Insert a trade log
-    cursor.execute("""
-        INSERT INTO "TradeLogs" (trade_id, time_taken, fee, comment)
-        VALUES (%s, %s, %s, %s)
-    """, (trade_id, random.randint(1, 5), random.uniform(0.1, 1.0), "Test log"))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        update.message.reply_text("Trade log inserted!")
+    except Exception as e:
+        print(f"Error occurred while processing /log_trade: {e}")
+        update.message.reply_text("There was an error while logging your trade.")
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    update.message.reply_text("Trade log inserted!")
-
-# Dispatcher handlers
+# Dispatcher handlers for the Telegram commands
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("trade", trade))
 dispatcher.add_handler(CommandHandler("log_trade", log_trade))
@@ -133,6 +128,7 @@ def webhook():
 def index():
     return "Bot is running."
 
+# Set the webhook URL for the bot
 def set_webhook():
     webhook_url = f"{RENDER_URL}/{TOKEN}"
     url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
