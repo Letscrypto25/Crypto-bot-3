@@ -1,5 +1,6 @@
 import os
 import psycopg2
+from urllib.parse import urlparse
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler
@@ -9,24 +10,24 @@ import time
 
 # Load environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
 RENDER_URL = os.getenv("RENDER_URL")
 
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
-# Database connection with timeout for debugging
+# Database connection with SSL and increased timeout
 def get_db_connection():
     try:
-        # Extracting the host from the Supabase URL
+        result = urlparse(DATABASE_URL)
         conn = psycopg2.connect(
-            host=SUPABASE_URL.split("/")[2],  # Extract the host from the URL
-            dbname="postgres",                # Default Supabase DB name
-            user="postgres",                  # Default user for Supabase
-            password=SUPABASE_KEY,            # Using the Supabase API key as the password
-            port=5432,                        # Default Postgres port
-            connect_timeout=5                 # Timeout after 5 seconds for debugging
+            database=result.path[1:],  # Skip the leading slash
+            user=result.username,
+            password=result.password,
+            host=result.hostname,
+            port=result.port,
+            sslmode="require",          # Ensure SSL is enabled
+            connect_timeout=10          # Increased timeout to 10 seconds
         )
         return conn
     except Exception as e:
@@ -43,7 +44,7 @@ def start(update, context):
     if not conn:
         update.message.reply_text("Failed to connect to the database.")
         return
-    
+
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO "Users" (telegram_id, username)
@@ -61,10 +62,9 @@ def trade(update, context):
     if not conn:
         update.message.reply_text("Failed to connect to the database.")
         return
-    
+
     cursor = conn.cursor()
 
-    # Log the time taken for the query
     start_time = time.time()
     cursor.execute('SELECT id FROM "Users" ORDER BY RANDOM() LIMIT 1;')
     print(f"Query execution time for random user fetch: {time.time() - start_time} seconds")
@@ -76,7 +76,6 @@ def trade(update, context):
 
     user_id = user[0]
 
-    # Insert a fake trade with proper parameters
     start_time = time.time()
     cursor.execute("""
         INSERT INTO "Trades" (user_id, platform, coin, amount, buy_price, sell_price, profit, status, strategy)
@@ -95,7 +94,7 @@ def log_trade(update, context):
     if not conn:
         update.message.reply_text("Failed to connect to the database.")
         return
-    
+
     cursor = conn.cursor()
 
     start_time = time.time()
@@ -109,7 +108,6 @@ def log_trade(update, context):
 
     trade_id = trade[0]
 
-    # Insert a trade log
     start_time = time.time()
     cursor.execute("""
         INSERT INTO "TradeLogs" (trade_id, time_taken, fee, comment)
@@ -127,13 +125,13 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("trade", trade))
 dispatcher.add_handler(CommandHandler("log_trade", log_trade))
 
-# Modify webhook handler to quickly respond and prevent timeouts
+# Webhook handler
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
         dispatcher.process_update(update)
-        return "ok", 200  # Fast response to avoid worker timeouts
+        return "ok", 200
     except Exception as e:
         print(f"Error processing update: {e}")
         return "error", 500
@@ -142,6 +140,7 @@ def webhook():
 def index():
     return "Bot is running."
 
+# Set webhook when starting
 def set_webhook():
     webhook_url = f"{RENDER_URL}/{TOKEN}"
     url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
