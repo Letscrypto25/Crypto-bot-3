@@ -29,6 +29,7 @@ def get_db_connection():
             sslmode="require",          # Ensure SSL is enabled
             connect_timeout=10          # Increased timeout to 10 seconds
         )
+        print("Database connection successful")  # Log successful connection
         return conn
     except Exception as e:
         print(f"Error connecting to database: {e}")
