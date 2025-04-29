@@ -1,6 +1,5 @@
 import os
 import psycopg2
-from urllib.parse import urlparse
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler
@@ -10,29 +9,27 @@ import time
 
 # Load environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
-RENDER_URL = os.getenv("RENDER_URL")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+RAILWAY_URL = os.getenv("RAILWAY_STATIC_URL")  # For webhook
 
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
-# Database connection with SSL and increased timeout
+# Connect to Supabase PostgreSQL
 def get_db_connection():
     try:
-        result = urlparse(DATABASE_URL)
         conn = psycopg2.connect(
-            database=result.path[1:],  # Skip the leading slash
-            user=result.username,
-            password=result.password,
-            host=result.hostname,
-            port=result.port,
-            sslmode="require",          # Ensure SSL is enabled
-            connect_timeout=10          # Increased timeout to 10 seconds
+            host=SUPABASE_URL.split("/")[2],
+            dbname="postgres",
+            user="postgres",
+            password=SUPABASE_KEY,
+            port=5432,
+            connect_timeout=5
         )
-        print("Database connection successful")  # Log successful connection
         return conn
     except Exception as e:
-        print(f"Error connecting to database: {e}")
+        print(f"Database error: {e}")
         return None
 
 dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
@@ -43,9 +40,8 @@ def start(update, context):
     username = update.message.chat.username
     conn = get_db_connection()
     if not conn:
-        update.message.reply_text("Failed to connect to the database.")
+        update.message.reply_text("Database connection failed.")
         return
-
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO "Users" (telegram_id, username)
@@ -55,35 +51,25 @@ def start(update, context):
     conn.commit()
     cursor.close()
     conn.close()
-    update.message.reply_text("Welcome! Your account is set up.")
+    update.message.reply_text("Welcome! You're now set up.")
 
 # /trade command
 def trade(update, context):
     conn = get_db_connection()
     if not conn:
-        update.message.reply_text("Failed to connect to the database.")
+        update.message.reply_text("Database connection failed.")
         return
-
     cursor = conn.cursor()
-
-    start_time = time.time()
     cursor.execute('SELECT id FROM "Users" ORDER BY RANDOM() LIMIT 1;')
-    print(f"Query execution time for random user fetch: {time.time() - start_time} seconds")
     user = cursor.fetchone()
-
     if not user:
-        update.message.reply_text("No users found. Please /start first.")
+        update.message.reply_text("No users found. Use /start first.")
         return
-
     user_id = user[0]
-
-    start_time = time.time()
     cursor.execute("""
         INSERT INTO "Trades" (user_id, platform, coin, amount, buy_price, sell_price, profit, status, strategy)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (user_id, 'Binance', 'BTC', 0.001, 60000, 60200, 2, 'completed', 'arbitrage'))
-    print(f"Query execution time for inserting trade: {time.time() - start_time} seconds")
-
     conn.commit()
     cursor.close()
     conn.close()
@@ -93,62 +79,53 @@ def trade(update, context):
 def log_trade(update, context):
     conn = get_db_connection()
     if not conn:
-        update.message.reply_text("Failed to connect to the database.")
+        update.message.reply_text("Database connection failed.")
         return
-
     cursor = conn.cursor()
-
-    start_time = time.time()
     cursor.execute('SELECT id FROM "Trades" ORDER BY RANDOM() LIMIT 1;')
-    print(f"Query execution time for random trade fetch: {time.time() - start_time} seconds")
     trade = cursor.fetchone()
-
     if not trade:
-        update.message.reply_text("No trades to log. Insert a trade first.")
+        update.message.reply_text("No trades found. Use /trade first.")
         return
-
     trade_id = trade[0]
-
-    start_time = time.time()
     cursor.execute("""
         INSERT INTO "TradeLogs" (trade_id, time_taken, fee, comment)
         VALUES (%s, %s, %s, %s)
-    """, (trade_id, random.randint(1, 5), random.uniform(0.1, 1.0), "Test log"))
-    print(f"Query execution time for inserting trade log: {time.time() - start_time} seconds")
-
+    """, (trade_id, random.randint(1, 5), round(random.uniform(0.1, 1.0), 2), "Test log"))
     conn.commit()
     cursor.close()
     conn.close()
     update.message.reply_text("Trade log inserted!")
 
-# Dispatcher handlers
+# Add command handlers
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("trade", trade))
 dispatcher.add_handler(CommandHandler("log_trade", log_trade))
 
-# Webhook handler
+# Telegram webhook
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     try:
-        print(f"Received update: {request.get_json(force=True)}")  # Log incoming request
         update = Update.de_json(request.get_json(force=True), bot)
         dispatcher.process_update(update)
         return "ok", 200
     except Exception as e:
-        print(f"Error processing update: {e}")
+        print(f"Webhook error: {e}")
         return "error", 500
 
 @app.route("/")
 def index():
-    return "Bot is running."
+    return "Bot running."
 
-# Set webhook when starting
 def set_webhook():
-    webhook_url = f"{RENDER_URL}/{TOKEN}"
-    url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
-    response = requests.get(url)
-    print(f"Webhook set response: {response.status_code}")
-    print(response.json())
+    if RAILWAY_URL:
+        webhook_url = f"{RAILWAY_URL}/{TOKEN}"
+        url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
+        response = requests.get(url)
+        print(f"Webhook response: {response.status_code}")
+        print(response.json())
+    else:
+        print("RAILWAY_STATIC_URL not found.")
 
 set_webhook()
 
