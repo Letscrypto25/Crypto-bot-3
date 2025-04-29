@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import psycopg2
 from flask import Flask, request
@@ -26,7 +27,7 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        print(f"Error connecting to database: {e}")
+        print(f"Error connecting to database: {str(e).encode('utf-8', errors='ignore').decode()}")
         return None
 
 dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
@@ -38,7 +39,7 @@ def usd_to_zar(amount_usd):
         rate = data['rates']['ZAR']
         return round(amount_usd * rate, 2)
     except Exception as e:
-        print(f"Error fetching exchange rate: {e}")
+        print(f"Error fetching exchange rate: {str(e).encode('utf-8', errors='ignore').decode()}")
         return None
 
 def start(update, context):
@@ -137,7 +138,7 @@ def webhook():
         dispatcher.process_update(update)
         return "ok", 200
     except Exception as e:
-        print(f"Error processing update: {e}")
+        print(f"Error processing update: {str(e).encode('utf-8', errors='ignore').decode()}")
         return "error", 500
 
 @app.route("/")
