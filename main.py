@@ -6,25 +6,22 @@ from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler
 import requests
 import random
+import time
 
-# Environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Initialize bot and Flask app
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
-# Fixed DB connection for Supabase with SSL
 def get_db_connection():
     try:
         conn = psycopg2.connect(
-            host="db.pqdqcthnimeurvdqpdlu.supabase.co",
+            host="pqdqcthnimeurvdqpdlu.supabase.co",
             dbname="postgres",
             user="postgres",
             password=SUPABASE_KEY,
             port=5432,
-            sslmode='require',
             connect_timeout=5
         )
         return conn
@@ -32,10 +29,8 @@ def get_db_connection():
         print(f"Error connecting to database: {str(e)}")
         return None
 
-# Dispatcher for Telegram bot
 dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
 
-# Convert USD to ZAR
 def usd_to_zar(amount_usd):
     try:
         response = requests.get('https://api.exchangerate.host/latest?base=USD&symbols=ZAR')
@@ -46,7 +41,6 @@ def usd_to_zar(amount_usd):
         print(f"Error fetching exchange rate: {str(e)}")
         return None
 
-# /start command
 def start(update, context):
     telegram_id = update.message.chat_id
     username = update.message.chat.username
@@ -66,7 +60,6 @@ def start(update, context):
     conn.close()
     update.message.reply_text("Welcome! Your account is set up.")
 
-# /trade command
 def trade(update, context):
     conn = get_db_connection()
     if not conn:
@@ -92,7 +85,6 @@ def trade(update, context):
     conn.close()
     update.message.reply_text("Trade inserted!")
 
-# /log_trade command
 def log_trade(update, context):
     conn = get_db_connection()
     if not conn:
@@ -118,7 +110,6 @@ def log_trade(update, context):
     conn.close()
     update.message.reply_text("Trade log inserted!")
 
-# /convert command
 def convert(update, context):
     if len(context.args) != 1:
         update.message.reply_text("Usage: /convert <amount_in_usd>")
@@ -134,13 +125,11 @@ def convert(update, context):
     except ValueError:
         update.message.reply_text("Please send a valid number.")
 
-# Add handlers
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("trade", trade))
 dispatcher.add_handler(CommandHandler("log_trade", log_trade))
 dispatcher.add_handler(CommandHandler("convert", convert))
 
-# Webhook route
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     try:
@@ -151,12 +140,10 @@ def webhook():
         print(f"Error processing update: {str(e)}")
         return "error", 500
 
-# Health check
 @app.route("/")
 def index():
     return "Bot is running on crypto-bot-3.fly.dev."
 
-# Run app
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(debug=True, host="0.0.0.0", port=port)
