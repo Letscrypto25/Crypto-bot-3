@@ -6,7 +6,6 @@ from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler
 import requests
 import random
-import time
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -52,14 +51,14 @@ def start(update, context):
 
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO "Users" (telegram_id, username)
-        VALUES (%s, %s)
+        INSERT INTO "Users" (telegram_id, username, strategy)
+        VALUES (%s, %s, %s)
         ON CONFLICT (telegram_id) DO NOTHING
-    """, (telegram_id, username))
+    """, (telegram_id, username, 'arbitrage'))  # default strategy
     conn.commit()
     cursor.close()
     conn.close()
-    update.message.reply_text("Welcome! Your account is set up.")
+    update.message.reply_text("Welcome! Your account is set up with strategy: arbitrage.")
 
 def trade(update, context):
     conn = get_db_connection()
@@ -68,23 +67,25 @@ def trade(update, context):
         return
 
     cursor = conn.cursor()
-    cursor.execute('SELECT id FROM "Users" ORDER BY RANDOM() LIMIT 1;')
+    telegram_id = update.message.chat_id
+
+    cursor.execute('SELECT id, strategy FROM "Users" WHERE telegram_id = %s;', (telegram_id,))
     user = cursor.fetchone()
 
     if not user:
-        update.message.reply_text("No users found. Please /start first.")
+        update.message.reply_text("No user found. Please use /start first.")
         return
 
-    user_id = user[0]
+    user_id, strategy = user
     cursor.execute("""
         INSERT INTO "Trades" (user_id, platform, coin, amount, buy_price, sell_price, profit, status, strategy)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (user_id, 'Binance', 'BTC', 0.001, 60000, 60200, 2, 'completed', 'arbitrage'))
+    """, (user_id, 'Binance', 'BTC', 0.001, 60000, 60200, 2, 'completed', strategy))
 
     conn.commit()
     cursor.close()
     conn.close()
-    update.message.reply_text("Trade inserted!")
+    update.message.reply_text(f"Trade inserted using strategy: {strategy}")
 
 def log_trade(update, context):
     conn = get_db_connection()
