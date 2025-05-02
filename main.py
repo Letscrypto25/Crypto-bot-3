@@ -1,43 +1,37 @@
-import os
 from flask import Flask, request
-from telegram import Update, Bot
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, filters
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import os
+import asyncio
 
 TOKEN = os.environ.get("BOT_TOKEN")
-bot = Bot(token=TOKEN)
-
 app = Flask(__name__)
+application = ApplicationBuilder().token(TOKEN).build()
 
-# Setup dispatcher
-dispatcher = Dispatcher(bot, None, workers=0)
+# --- Handlers ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome! This bot is running via webhook on Fly.io.")
 
-# --- Command Handlers ---
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Available commands:\n/start\n/help\n/balance")
 
-def start(update: Update, context):
-    update.message.reply_text("Welcome! This bot is running via webhook on Fly.io.")
+async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Your current balance is R500.")
 
-def help_command(update: Update, context):
-    update.message.reply_text("Available commands:\n/start\n/help\n/balance")
-
-def balance(update: Update, context):
-    # Dummy balance
-    update.message.reply_text("Your current balance is R500.")
-
-def unknown(update: Update, context):
-    update.message.reply_text("Sorry, I didn't understand that command.")
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Sorry, I didn't understand that command.")
 
 # Register handlers
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("help", help_command))
-dispatcher.add_handler(CommandHandler("balance", balance))
-dispatcher.add_handler(MessageHandler(filters.COMMAND, unknown))
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("help", help_command))
+application.add_handler(CommandHandler("balance", balance))
+application.add_handler(MessageHandler(filters.COMMAND, unknown))
 
-# --- Webhook Route ---
-
+# --- Webhook route ---
 @app.route(f"/webhook/{TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    asyncio.run(application.process_update(update))
     return "ok", 200
 
 @app.route("/", methods=["GET"])
