@@ -9,15 +9,10 @@ from firebase_admin import credentials, firestore
 import json
 
 # --- Firebase Init ---
-try:
-    creds_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
-    cred = credentials.Certificate(creds_dict)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("Firebase initialized successfully.")
-except Exception as e:
-    print("FIREBASE INIT ERROR:", e)
-    db = None  # fallback so bot doesn't crash if Firebase fails
+creds_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
+cred = credentials.Certificate(creds_dict)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 # --- Telegram Bot ---
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -26,10 +21,6 @@ application = ApplicationBuilder().token(TOKEN).build()
 
 # --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not db:
-        await update.message.reply_text("Database not available.")
-        return
-
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or "unknown"
     user_ref = db.collection("users").document(user_id)
@@ -46,10 +37,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Welcome back!")
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not db:
-        await update.message.reply_text("Database not available.")
-        return
-
     user_id = str(update.effective_user.id)
     user_ref = db.collection("users").document(user_id).get()
 
@@ -75,7 +62,12 @@ application.add_handler(MessageHandler(filters.COMMAND, unknown))
 @app.route(f"/webhook/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(application.process_update(update))
+
+    async def handle():
+        await application.initialize()
+        await application.process_update(update)
+
+    asyncio.run(handle())
     return "ok", 200
 
 @app.route("/", methods=["GET"])
