@@ -31,7 +31,7 @@ async def check_trends(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def main() -> None:
     """Start the bot."""
     # Initialize the application with your bot's token
-    application = Application.builder().token("YOUR_BOT_TOKEN").build()
+    application = Application.builder().token("BOT_TOKEN").build()
 
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
@@ -40,7 +40,7 @@ async def main() -> None:
     application.add_handler(CommandHandler("check_trends", check_trends))
 
     # Set up webhook
-    webhook_url = "https://your-fly-app-url.com/webhook/YOUR_BOT_TOKEN"
+    webhook_url = "https://your-fly-app-url.com/webhook/"BOT_TOKEN"
     
     # Set webhook
     await application.bot.set_webhook(webhook_url)
@@ -49,7 +49,7 @@ async def main() -> None:
     await application.run_webhook(
         listen="0.0.0.0",  # Listen on all interfaces
         port=8080,  # Changed port to 8080 as requested
-        url_path="webhook/YOUR_BOT_TOKEN",  # Set the correct URL path for your webhook
+        url_path="webhook/"BOT_TOKEN",  # Set the correct URL path for your webhook
         webhook_url=webhook_url,  # Provide the full URL for the webhook
         keyfile=None,  # Optionally add SSL keyfile if needed
         certfile=None,  # Optionally add SSL certificate if needed
