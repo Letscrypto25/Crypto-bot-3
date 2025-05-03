@@ -1,79 +1,42 @@
-from flask import Flask, request
+import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, ContextTypes
 import os
-import asyncio
-import datetime
-import firebase_admin
-from firebase_admin import credentials, firestore
-import json
 
-# --- Firebase Init ---
-creds_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
-cred = credentials.Certificate(creds_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+# Set up logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# --- Telegram Bot ---
-TOKEN = os.environ.get("BOT_TOKEN")
-app = Flask(__name__)
-application = ApplicationBuilder().token(TOKEN).build()
+# Define your command function(s)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text('Hello, I am your crypto trading bot!')
 
-# --- Handlers ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    username = update.effective_user.username or "unknown"
-    user_ref = db.collection("users").document(user_id)
+# Main function to set up the bot
+async def main() -> None:
+    """Start the bot."""
+    # Initialize the application with your bot's token
+    application = Application.builder().token("YOUR_BOT_TOKEN").build()
 
-    if not user_ref.get().exists:
-        user_ref.set({
-            "user_id": user_id,
-            "username": username,
-            "balance": 500,
-            "joined": datetime.datetime.utcnow().isoformat()
-        })
-        await update.message.reply_text(f"Welcome, {username}! R500 balance has been added to your account.")
-    else:
-        await update.message.reply_text("Welcome back!")
+    # Add command handler (you can add more handlers as needed)
+    application.add_handler(CommandHandler("start", start))
 
-async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    user_ref = db.collection("users").document(user_id).get()
+    # Set up webhook
+    webhook_url = "https://your-fly-app-url.com/webhook/YOUR_BOT_TOKEN"
+    
+    # Set webhook
+    await application.bot.set_webhook(webhook_url)
+    
+    # Start the webhook listener
+    await application.run_webhook(
+        listen="0.0.0.0",  # Listen on all interfaces
+        port=8443,  # Port to listen on (make sure it's open in Fly.io)
+        url_path="webhook/YOUR_BOT_TOKEN",  # Set the correct URL path for your webhook
+        webhook_url=webhook_url,  # Provide the full URL for the webhook
+        keyfile=None,  # Optionally add SSL keyfile if needed
+        certfile=None,  # Optionally add SSL certificate if needed
+    )
 
-    if user_ref.exists:
-        balance = user_ref.to_dict().get("balance", 0)
-        await update.message.reply_text(f"Your current balance is R{balance}")
-    else:
-        await update.message.reply_text("Please use /start first to initialize your account.")
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Available commands:\n/start\n/help\n/balance")
-
-async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Sorry, I didn't understand that command.")
-
-# --- Register Handlers ---
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("help", help_command))
-application.add_handler(CommandHandler("balance", balance))
-application.add_handler(MessageHandler(filters.COMMAND, unknown))
-
-# --- Webhook route ---
-@app.route(f"/webhook/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-
-    async def handle():
-        await application.initialize()
-        await application.process_update(update)
-
-    asyncio.run(handle())
-    return "ok", 200
-
-@app.route("/", methods=["GET"])
-def home():
-    return "Telegram bot is running via webhook!", 200
-
-# --- Run Server ---
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
