@@ -9,10 +9,15 @@ from firebase_admin import credentials, firestore
 import json
 
 # --- Firebase Init ---
-creds_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
-cred = credentials.Certificate(creds_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+try:
+    creds_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
+    cred = credentials.Certificate(creds_dict)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Firebase initialized successfully.")
+except Exception as e:
+    print("FIREBASE INIT ERROR:", e)
+    db = None  # fallback so bot doesn't crash if Firebase fails
 
 # --- Telegram Bot ---
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -21,13 +26,17 @@ application = ApplicationBuilder().token(TOKEN).build()
 
 # --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)  # Convert user_id to string
+    if not db:
+        await update.message.reply_text("Database not available.")
+        return
+
+    user_id = str(update.effective_user.id)
     username = update.effective_user.username or "unknown"
-    user_ref = db.collection("users").document(user_id)  # Use user_id (as string) as document ID
-    
+    user_ref = db.collection("users").document(user_id)
+
     if not user_ref.get().exists:
         user_ref.set({
-            "user_id": user_id,  # Store user_id as a string
+            "user_id": user_id,
             "username": username,
             "balance": 500,
             "joined": datetime.datetime.utcnow().isoformat()
@@ -37,6 +46,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Welcome back!")
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not db:
+        await update.message.reply_text("Database not available.")
+        return
+
     user_id = str(update.effective_user.id)
     user_ref = db.collection("users").document(user_id).get()
 
