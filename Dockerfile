@@ -1,8 +1,17 @@
+# Use official Python image
+FROM python:3.11-slim
 
-FROM python:3.10-slim
+# Set working directory
 WORKDIR /app
-COPY . /app
-RUN pip install -r requirements.txt
-ENV PORT 8080
+
+# Copy project files
+COPY . .
+
+# Install pip dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Expose port (optional; Fly.io doesn't require this, but good practice)
 EXPOSE 8080
+
+# Run the app
 CMD ["python", "main.py"]
