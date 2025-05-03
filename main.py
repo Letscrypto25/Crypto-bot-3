@@ -30,8 +30,14 @@ application.add_handler(MessageHandler(filters.COMMAND, unknown))
 # --- Webhook route ---
 @app.route(f"/webhook/{TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(application.process_update(update))
+    try:
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(application.initialize())
+        loop.run_until_complete(application.process_update(update))
+    except Exception as e:
+        print("Webhook error:", e)
     return "ok", 200
 
 @app.route("/", methods=["GET"])
