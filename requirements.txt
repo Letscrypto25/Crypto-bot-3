@@ -2,4 +2,4 @@ python-telegram-bot==20.7
 Flask==2.2.5
 firebase-admin 
 quart
-werkzeug
+werkzeug==3.0
