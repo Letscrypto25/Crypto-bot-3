@@ -32,7 +32,6 @@ async def main() -> None:
     """Start the bot."""
     # Initialize the application with your bot's token
     application = Application.builder().token("BOT_TOKEN").build()
-
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
