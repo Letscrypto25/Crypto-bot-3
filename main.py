@@ -21,6 +21,7 @@ firebase_admin.initialize_app(cred)
 
 # Flask app for health checks
 flask_app = Flask(__name__)
+flask_app.debug = False  # Recommended for production
 
 @flask_app.route("/")
 def health_check():
@@ -57,7 +58,7 @@ async def setup_bot():
         port=8080,
         url_path=f"webhook/{TOKEN}",
         webhook_url=webhook_url,
-        web_app=flask_app,  # Embed Flask app
+        app=flask_app,  # Corrected parameter
     )
 
 if __name__ == "__main__":
