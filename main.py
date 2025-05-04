@@ -1,7 +1,8 @@
 import logging
+import os
+import json
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-import os
 import firebase_admin
 from firebase_admin import credentials
 
@@ -10,9 +11,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Firebase using your local path in Termux
-firebase_credentials_path = "/data/data/com.termux/files/home/firebase.json"
-cred = credentials.Certificate(firebase_credentials_path)
+# Initialize Firebase using secret loaded from environment variable
+firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS")
+cred_dict = json.loads(firebase_credentials_json)
+cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
 
 # Command handlers
