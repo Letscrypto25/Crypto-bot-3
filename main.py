@@ -59,8 +59,8 @@ async def setup_bot():
 
     # Run the webhook handler using Flask (with async capability)
     await application.run_webhook(
-        listen="0.0.0.0",
-        port=8080,
+        listen="0.0.0.0",  # Ensure it listens on all network interfaces
+        port=8080,         # Ensure it listens on port 8080
         url_path=f"webhook/{TOKEN}",
         webhook_url=webhook_url,
         web_app=flask_app,  # Embed Flask app within the application
