@@ -2,7 +2,7 @@ import logging
 import os
 import json
 import asyncio
-from flask import Flask, request
+from quart import Quart, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler
 
@@ -11,16 +11,16 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Flask app for health checks
-flask_app = Flask(__name__)
+# Quart app for health checks and webhook handling
+flask_app = Quart(__name__)
 
 @flask_app.route("/")
-def health_check():
+async def health_check():
     return "OK", 200
 
 # Webhook handler
 @flask_app.route(f"/webhook/<token>", methods=["POST"])
-def telegram_webhook(token):
+async def telegram_webhook(token):
     if token != os.getenv("BOT_TOKEN"):
         logger.error(f"Unauthorized access: Token mismatch. Expected {os.getenv('BOT_TOKEN')}, got {token}")
         return "Unauthorized", 403
@@ -29,8 +29,8 @@ def telegram_webhook(token):
     logger.info(f"Received webhook for token: {token}")
     
     # Process the incoming update asynchronously
-    update = Update.de_json(request.json, application.bot)
-    asyncio.ensure_future(application.process_update(update))  # Ensure task is created without breaking event loop
+    update = Update.de_json(await request.json(), application.bot)
+    await application.process_update(update)  # Ensure task is created properly with await
     
     return "OK", 200
 
@@ -57,14 +57,8 @@ async def setup_bot():
     # Set webhook URL
     await application.bot.set_webhook(webhook_url)
 
-    # Run the webhook handler using Flask (with async capability)
-    await application.run_webhook(
-        listen="0.0.0.0",  # Ensure it listens on all network interfaces
-        port=8080,         # Ensure it listens on port 8080
-        url_path=f"webhook/{TOKEN}",
-        webhook_url=webhook_url,
-        web_app=flask_app,  # Embed Flask app within the application
-    )
+    # Run the Quart app to handle webhook asynchronously
+    await flask_app.run(host="0.0.0.0", port=8080)
 
 if __name__ == "__main__":
     asyncio.run(setup_bot())
