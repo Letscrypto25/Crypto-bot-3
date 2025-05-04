@@ -1,4 +1,4 @@
 python-telegram-bot==20.7
-firebase-admin 
+firebase-admin
 quart
-werkzeug==2.2.2
+werkzeug==2.0.3
