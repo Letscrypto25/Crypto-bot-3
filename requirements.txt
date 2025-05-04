@@ -1,4 +1,5 @@
-python-telegram-bot==20.7
+python-telegram-bot[asyncio]==20.8
+quart==0.19.4
 firebase-admin
-quart
 werkzeug==2.0.3
+hypercorn[quart]==0.16.0
