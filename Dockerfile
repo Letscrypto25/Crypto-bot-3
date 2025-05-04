@@ -27,5 +27,5 @@ COPY . .
 # Expose port (if running locally or for health check)
 EXPOSE 8080
 
-# Command to run the bot
-CMD ["python", "main.py"]
+# Use hypercorn to run the Quart app correctly
+CMD ["hypercorn", "main:flask_app", "--bind", "0.0.0.0:8080"]
