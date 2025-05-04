@@ -1,7 +1,7 @@
 import logging
 import os
 import json
-import asyncio
+import threading
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -13,19 +13,21 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Firebase using secret from environment variable
+# Initialize Firebase from secret
 firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS")
 cred_dict = json.loads(firebase_credentials_json)
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
 
-# Flask app for health checks
+# Optional: Flask app for health checks
 flask_app = Flask(__name__)
-flask_app.debug = False  # Recommended for production
 
 @flask_app.route("/")
 def health_check():
     return "OK", 200
+
+def run_flask():
+    flask_app.run(host="0.0.0.0", port=8081)
 
 # Telegram command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -58,8 +60,13 @@ async def setup_bot():
         port=8080,
         url_path=f"webhook/{TOKEN}",
         webhook_url=webhook_url,
-        app=flask_app,  # Corrected parameter
     )
 
 if __name__ == "__main__":
+    # Start Flask health check server in background
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # Start Telegram bot
+    import asyncio
     asyncio.run(setup_bot())
