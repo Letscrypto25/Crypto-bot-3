@@ -1,4 +1,3 @@
 python-telegram-bot==20.7
 Flask==2.2.5
-firebase-admin
-python-dontenv
+firebase-admin 
