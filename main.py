@@ -4,51 +4,59 @@ from quart import Quart, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# Set up logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Quart app for webhook handling
-app = Quart(__name__)
+flask_app = Quart(__name__)
+flask_app.config["PROVIDE_AUTOMATIC_OPTIONS"] = flask_app.config.get("PROVIDE_AUTOMATIC_OPTIONS", True)
 
-# Prevent KeyError in newer Flask/Quart versions
-app.config["PROVIDE_AUTOMATIC_OPTIONS"] = app.config.get("PROVIDE_AUTOMATIC_OPTIONS", True)
-
-# Global Telegram app instance
 application: Application = None
 
-@app.route("/")
+@flask_app.route("/")
 async def health_check():
     return "OK", 200
 
-@app.route(f"/webhook/<token>", methods=["POST"])
+@flask_app.route(f"/webhook/<token>", methods=["POST"])
 async def telegram_webhook(token):
     if token != os.getenv("BOT_TOKEN"):
-        logger.error(f"Unauthorized access: Token mismatch. Expected {os.getenv('BOT_TOKEN')}, got {token}")
+        logger.error("Invalid token in webhook URL.")
         return "Unauthorized", 403
 
-    logger.info(f"Received webhook for token: {token}")
     update = Update.de_json(await request.json, application.bot)
     await application.process_update(update)
     return "OK", 200
 
-# Telegram command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hello, I am your crypto trading bot!")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("How can I assist you with your crypto trades?")
 
-# Setup Telegram bot and webhook on startup
-@app.before_serving
+@flask_app.before_serving
 async def setup_bot():
     global application
-    TOKEN = os.getenv("BOT_TOKEN")
-    webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{TOKEN}"
+    try:
+        TOKEN = os.getenv("BOT_TOKEN")
+        if not TOKEN:
+            raise ValueError("BOT_TOKEN not set in environment")
 
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    await application.bot.set_webhook(webhook_url)
-    logger.info("Webhook set and bot ready!")
+        application = Application.builder().token(TOKEN).build()
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+
+        webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{TOKEN}"
+        await application.bot.set_webhook(webhook_url)
+
+        logger.info("Webhook set and bot ready!")
+    except Exception as e:
+        logger.exception("Error during bot setup")
+
+if __name__ == "__main__":
+    import asyncio
+    import hypercorn.asyncio
+    from hypercorn.config import Config
+
+    config = Config()
+    config.bind = ["0.0.0.0:8080"]
+
+    asyncio.run(hypercorn.asyncio.serve(flask_app, config))
