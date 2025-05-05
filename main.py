@@ -10,19 +10,19 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Quart app for webhook handling
-flask_app = Quart(__name__)
+app = Quart(__name__)
 
 # Prevent KeyError in newer Flask/Quart versions
-flask_app.config["PROVIDE_AUTOMATIC_OPTIONS"] = flask_app.config.get("PROVIDE_AUTOMATIC_OPTIONS", True)
+app.config["PROVIDE_AUTOMATIC_OPTIONS"] = app.config.get("PROVIDE_AUTOMATIC_OPTIONS", True)
 
 # Global Telegram app instance
 application: Application = None
 
-@flask_app.route("/")
+@app.route("/")
 async def health_check():
     return "OK", 200
 
-@flask_app.route(f"/webhook/<token>", methods=["POST"])
+@app.route(f"/webhook/<token>", methods=["POST"])
 async def telegram_webhook(token):
     if token != os.getenv("BOT_TOKEN"):
         logger.error(f"Unauthorized access: Token mismatch. Expected {os.getenv('BOT_TOKEN')}, got {token}")
@@ -41,7 +41,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("How can I assist you with your crypto trades?")
 
 # Setup Telegram bot and webhook on startup
-@flask_app.before_serving
+@app.before_serving
 async def setup_bot():
     global application
     TOKEN = os.getenv("BOT_TOKEN")
