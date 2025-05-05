@@ -1,26 +1,31 @@
+# Use a lightweight base image
 FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    DEBIAN_FRONTEND=noninteractive
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
+# Set working directory
 WORKDIR /app
 
-# Install only what's needed
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     curl \
-    && apt-get purge -y --auto-remove \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements first
 COPY requirements.txt .
-RUN pip install -r requirements.txt
 
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy app code
 COPY . .
 
+# Expose port 8080 for Fly.io
 EXPOSE 8080
 
-CMD ["hypercorn", "main:flask_app", "--bind", "0.0.0.0:8080"]
+# Run app with Hypercorn (for Quart)
+CMD ["hypercorn", "main:app", "--bind", "0.0.0.0:8080"]
