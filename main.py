@@ -1,29 +1,38 @@
 import logging
 import os
+import asyncio
+
 from quart import Quart, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from hypercorn.asyncio import serve
+from hypercorn.config import Config
 
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-flask_app = Quart(__name__)
-flask_app.config["PROVIDE_AUTOMATIC_OPTIONS"] = flask_app.config.get("PROVIDE_AUTOMATIC_OPTIONS", True)
+# Quart app
+app = Quart(__name__)
+application: Application = None  # Telegram app
 
-application: Application = None
-
-@flask_app.route("/")
+@app.route("/")
 async def health_check():
     return "OK", 200
 
-@flask_app.route(f"/webhook/<token>", methods=["POST"])
+@app.route("/webhook/<token>", methods=["POST"])
 async def telegram_webhook(token):
     if token != os.getenv("BOT_TOKEN"):
         logger.error("Invalid token in webhook URL.")
         return "Unauthorized", 403
 
-    update = Update.de_json(await request.json, application.bot)
-    await application.process_update(update)
+    try:
+        update = Update.de_json(await request.get_json(), application.bot)
+        await application.process_update(update)
+    except Exception as e:
+        logger.exception("Failed to process update")
+        return "Internal Server Error", 500
+
     return "OK", 200
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -32,31 +41,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("How can I assist you with your crypto trades?")
 
-@flask_app.before_serving
+@app.before_serving
 async def setup_bot():
     global application
     try:
-        TOKEN = os.getenv("BOT_TOKEN")
-        if not TOKEN:
-            raise ValueError("BOT_TOKEN not set in environment")
+        token = os.getenv("BOT_TOKEN")
+        if not token:
+            raise ValueError("BOT_TOKEN is not set")
 
-        application = Application.builder().token(TOKEN).build()
+        application = Application.builder().token(token).build()
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("help", help_command))
 
-        webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{TOKEN}"
+        webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
         await application.bot.set_webhook(webhook_url)
 
-        logger.info("Webhook set and bot ready!")
+        logger.info(f"Bot is live with webhook: {webhook_url}")
     except Exception as e:
         logger.exception("Error during bot setup")
 
 if __name__ == "__main__":
-    import asyncio
-    import hypercorn.asyncio
-    from hypercorn.config import Config
-
     config = Config()
     config.bind = ["0.0.0.0:8080"]
-
-    asyncio.run(hypercorn.asyncio.serve(flask_app, config))
+    asyncio.run(serve(app, config))
