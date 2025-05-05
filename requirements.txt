@@ -2,3 +2,4 @@ python-telegram-bot[asyncio]==20.8
 quart==0.19.4
 firebase-admin
 hypercorn[quart]==0.16.0
+Flask==2.2.5
