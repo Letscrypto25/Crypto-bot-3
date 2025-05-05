@@ -1,6 +1,7 @@
 import logging
 import os
 import asyncio
+import json
 from datetime import datetime
 
 import firebase_admin
@@ -22,13 +23,22 @@ application: Application = None  # Telegram application
 initialized = False
 
 # Initialize Firebase
-cred_path = os.getenv("FIREBASE_CREDENTIALS")
-if not cred_path:
+firebase_cred = os.getenv("FIREBASE_CREDENTIALS")
+if not firebase_cred:
     raise ValueError("FIREBASE_CREDENTIALS not set")
-cred = credentials.Certificate(cred_path)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
 
+# Parse the credentials from the JSON string
+try:
+    cred_data = json.loads(firebase_cred)
+    cred = credentials.Certificate(cred_data)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+except json.JSONDecodeError:
+    logger.error("Invalid JSON format for Firebase credentials.")
+    raise
+except Exception as e:
+    logger.error(f"Error initializing Firebase: {e}")
+    raise
 
 # Health check
 @app.route("/")
