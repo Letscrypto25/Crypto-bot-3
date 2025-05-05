@@ -25,14 +25,16 @@ initialized = False
 # Initialize Firebase
 firebase_cred = os.getenv("FIREBASE_CREDENTIALS")
 if not firebase_cred:
+    logger.error("FIREBASE_CREDENTIALS not set")
     raise ValueError("FIREBASE_CREDENTIALS not set")
 
 # Parse the credentials from the JSON string
 try:
-    cred_data = json.loads(firebase_cred)
-    cred = credentials.Certificate(cred_data)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
+    cred_data = json.loads(firebase_cred)  # Convert JSON string to dictionary
+    cred = credentials.Certificate(cred_data)  # Pass dictionary to Firebase credentials
+    firebase_admin.initialize_app(cred)  # Initialize Firebase app
+    db = firestore.client()  # Create Firestore client
+    logger.info("Firebase initialized successfully.")
 except json.JSONDecodeError:
     logger.error("Invalid JSON format for Firebase credentials.")
     raise
@@ -40,12 +42,12 @@ except Exception as e:
     logger.error(f"Error initializing Firebase: {e}")
     raise
 
-# Health check
+# Health check route
 @app.route("/")
 async def health_check():
     return "OK", 200
 
-# Webhook
+# Webhook route for handling Telegram updates
 @app.route("/webhook/<token>", methods=["POST"])
 async def telegram_webhook(token):
     global application, initialized
@@ -66,7 +68,7 @@ async def telegram_webhook(token):
 
     return "OK", 200
 
-# Save user to Firestore
+# Function to save user data to Firestore
 async def save_user(update: Update):
     user = update.effective_user
     user_ref = db.collection("users").document(str(user.id))
@@ -74,7 +76,7 @@ async def save_user(update: Update):
     user_data = {
         "telegram_id": user.id,
         "username": f"@{user.username}" if user.username else "unknown",
-        "user_id": "Telegram api",
+        "user_id": "Telegram api",  # Optional or can be updated later
         "joined_at": datetime.utcnow(),
         "last_action": "start",
         "balance": 100,
@@ -83,33 +85,34 @@ async def save_user(update: Update):
 
     user_ref.set(user_data, merge=True)
 
-# /start command
+# /start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await save_user(update)
     await update.message.reply_text("Hello, I am your crypto trading bot!")
 
-# /help command
+# /help command handler
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("How can I assist you with your crypto trades?")
 
-# Main async entry
+# Main async entry point
 async def main():
     global application
     token = os.getenv("BOT_TOKEN")
     if not token:
+        logger.error("BOT_TOKEN not set")
         raise ValueError("BOT_TOKEN is not set")
 
-    # Telegram bot
+    # Initialize Telegram bot application
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
 
-    # Set Telegram webhook
+    # Set the Telegram webhook URL
     webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
     await application.bot.set_webhook(webhook_url)
     logger.info(f"Webhook set to: {webhook_url}")
 
-    # Start web server
+    # Start Quart web server
     config = Config()
     config.bind = ["0.0.0.0:8080"]
     await serve(app, config)
