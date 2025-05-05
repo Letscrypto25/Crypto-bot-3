@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 # Quart app
 app = Quart(__name__)
-application: Application = None  # Telegram app
+application: Application = None  # Telegram application
+initialized = False  # Track initialization state
 
 @app.route("/")
 async def health_check():
@@ -22,15 +23,19 @@ async def health_check():
 
 @app.route("/webhook/<token>", methods=["POST"])
 async def telegram_webhook(token):
-    global application
+    global application, initialized
     if token != os.getenv("BOT_TOKEN"):
         logger.error("Invalid token in webhook URL.")
         return "Unauthorized", 403
 
     try:
+        if not initialized:
+            await application.initialize()
+            initialized = True
+
         update = Update.de_json(await request.get_json(), application.bot)
         await application.process_update(update)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to process update")
         return "Internal Server Error", 500
 
