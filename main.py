@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 # Quart app for webhook handling
 flask_app = Quart(__name__)
 
+# Prevent KeyError in newer Flask/Quart versions
+flask_app.config["PROVIDE_AUTOMATIC_OPTIONS"] = flask_app.config.get("PROVIDE_AUTOMATIC_OPTIONS", True)
+
 # Global Telegram app instance
 application: Application = None
 
