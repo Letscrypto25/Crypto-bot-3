@@ -22,6 +22,7 @@ async def health_check():
 
 @app.route("/webhook/<token>", methods=["POST"])
 async def telegram_webhook(token):
+    global application
     if token != os.getenv("BOT_TOKEN"):
         logger.error("Invalid token in webhook URL.")
         return "Unauthorized", 403
@@ -41,26 +42,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("How can I assist you with your crypto trades?")
 
-@app.before_serving
-async def setup_bot():
+async def main():
     global application
-    try:
-        token = os.getenv("BOT_TOKEN")
-        if not token:
-            raise ValueError("BOT_TOKEN is not set")
+    token = os.getenv("BOT_TOKEN")
+    if not token:
+        raise ValueError("BOT_TOKEN is not set")
 
-        application = Application.builder().token(token).build()
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("help", help_command))
+    # Initialize bot
+    application = Application.builder().token(token).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
 
-        webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
-        await application.bot.set_webhook(webhook_url)
+    # Set webhook
+    webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
+    await application.bot.set_webhook(webhook_url)
+    logger.info(f"Webhook set to: {webhook_url}")
 
-        logger.info(f"Bot is live with webhook: {webhook_url}")
-    except Exception as e:
-        logger.exception("Error during bot setup")
-
-if __name__ == "__main__":
+    # Start Quart web server
     config = Config()
     config.bind = ["0.0.0.0:8080"]
-    asyncio.run(serve(app, config))
+    await serve(app, config)
+
+if __name__ == "__main__":
+    asyncio.run(main())
