@@ -1,126 +1,112 @@
-import logging
 import os
-import json
-import asyncio
-from datetime import datetime
 import firebase_admin
-from firebase_admin import credentials, firestore
-from quart import Quart
-from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    ContextTypes, filters
-)
-from hypercorn.asyncio import serve
-from hypercorn.config import Config
+from firebase_admin import credentials, db
+import telegram
+from telegram.ext import CommandHandler, Updater
+import logging
+import json
+from binance.client import Client
+import luno
+import requests
 
-# Logging setup
+# Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
-# Quart app
-app = Quart(__name__)
-application: Application = None
+# Initialize Firebase
+cred = credentials.Certificate("path/to/your/firebase/credentials.json")  # Update with actual path
+firebase_admin.initialize_app(cred, {'databaseURL': 'https://your-firebase-url.firebaseio.com'})
 
-# Firebase setup
-firebase_cred = os.getenv("FIREBASE_CREDENTIALS")
-if not firebase_cred:
-    raise ValueError("FIREBASE_CREDENTIALS not set")
+# Initialize Telegram bot
+TOKEN = 'your-telegram-bot-token'  # Replace with your Telegram bot token
+bot = telegram.Bot(token=TOKEN)
 
-try:
-    cred_data = json.loads(firebase_cred)
-    cred = credentials.Certificate(cred_data)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    logger.info("Firebase initialized.")
-except Exception as e:
-    logger.error(f"Firebase error: {e}")
-    raise
+# Binance and Luno API client setup (will be used later)
+binance_client = None
+luno_client = None
 
-# Save user on /start
-async def save_user(update: Update):
-    user = update.effective_user
-    user_ref = db.collection("users").document(str(user.id))
-    user_ref.set({
-        "telegram_id": str(user.id),
-        "username": f"@{user.username}" if user.username else "unknown",
-        "user_id": "Telegram api",
-        "joined_at": datetime.utcnow(),
-        "last_action": "start",
-        "subscribed": True,
-        "balance": 100,
-        "binance_api_key": None,
-        "binance_api_secret": None,
-        "luno_api_key": None,
-        "luno_api_secret": None,
-        "trade_status": "inactive"
-    }, merge=True)
+# Command handlers
+def start(update, context):
+    update.message.reply_text('Welcome to the Crypto Trading Bot! Use /setkeys to set your API keys.')
 
-# /start command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await save_user(update)
-    context.user_data['step'] = 'awaiting_binance_key'
-    await update.message.reply_text("Welcome! Please enter your *Binance API key*.", parse_mode="Markdown")
+def setkeys(update, context):
+    # This is where users can provide their API keys
+    user_telegram_id = update.message.from_user.id
+    try:
+        user_binance_key = context.args[0]
+        user_binance_secret = context.args[1]
+        user_luno_key = context.args[2]
+        user_luno_secret = context.args[3]
+        
+        # Store the API keys in Firebase
+        ref = db.reference(f'api_keys/{user_telegram_id}')
+        ref.set({
+            'binance_api_key': user_binance_key,
+            'binance_api_secret': user_binance_secret,
+            'luno_api_key': user_luno_key,
+            'luno_api_secret': user_luno_secret
+        })
+        
+        update.message.reply_text('Your API keys have been saved successfully!')
+    except IndexError:
+        update.message.reply_text('Please provide all 4 keys: /setkeys <binance_api_key> <binance_api_secret> <luno_api_key> <luno_api_secret>')
 
-# Handle step-by-step API entry
-async def handle_api_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    telegram_id = str(user.id)
-    text = update.message.text
-    step = context.user_data.get('step')
-
-    doc_ref = db.collection("users").document(telegram_id)
-
-    if step == 'awaiting_binance_key':
-        context.user_data['binance_key'] = text
-        context.user_data['step'] = 'awaiting_binance_secret'
-        await update.message.reply_text("Now enter your *Binance API secret*.", parse_mode="Markdown")
-
-    elif step == 'awaiting_binance_secret':
-        context.user_data['binance_secret'] = text
-        context.user_data['step'] = 'awaiting_luno_key'
-        await update.message.reply_text("Now enter your *Luno API key*.", parse_mode="Markdown")
-
-    elif step == 'awaiting_luno_key':
-        context.user_data['luno_key'] = text
-        context.user_data['step'] = 'awaiting_luno_secret'
-        await update.message.reply_text("Now enter your *Luno API secret*.", parse_mode="Markdown")
-
-    elif step == 'awaiting_luno_secret':
-        context.user_data['luno_secret'] = text
-
-        # Save to Firestore
-        doc_ref.set({
-            "binance_api_key": context.user_data['binance_key'],
-            "binance_api_secret": context.user_data['binance_secret'],
-            "luno_api_key": context.user_data['luno_key'],
-            "luno_api_secret": context.user_data['luno_secret']
-        }, merge=True)
-
-        context.user_data.clear()
-        await update.message.reply_text("✅ Your API keys have been saved successfully!")
-
+def status(update, context):
+    user_telegram_id = update.message.from_user.id
+    ref = db.reference(f'api_keys/{user_telegram_id}')
+    user_data = ref.get()
+    
+    if user_data:
+        status_message = (
+            f"Binance API Key: {'Set' if user_data.get('binance_api_key') else 'Not Set'}\n"
+            f"Binance API Secret: {'Set' if user_data.get('binance_api_secret') else 'Not Set'}\n"
+            f"Luno API Key: {'Set' if user_data.get('luno_api_key') else 'Not Set'}\n"
+            f"Luno API Secret: {'Set' if user_data.get('luno_api_secret') else 'Not Set'}"
+        )
+        update.message.reply_text(status_message)
     else:
-        await update.message.reply_text("Please type /start to begin linking your API keys.")
+        update.message.reply_text('No API keys set. Please use /setkeys to set your keys.')
 
-# Main bot setup
-async def main():
-    global application
-    token = os.getenv("BOT_TOKEN")
-    if not token:
-        raise ValueError("BOT_TOKEN is not set")
+def trade(update, context):
+    user_telegram_id = update.message.from_user.id
+    ref = db.reference(f'api_keys/{user_telegram_id}')
+    user_data = ref.get()
 
-    application = Application.builder().token(token).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_api_flow))
+    if user_data and user_data.get('binance_api_key') and user_data.get('binance_api_secret') and user_data.get('luno_api_key') and user_data.get('luno_api_secret'):
+        # Setup Binance client
+        binance_client = Client(user_data['binance_api_key'], user_data['binance_api_secret'])
+        # Setup Luno client (you'll need to implement the actual client methods for Luno)
+        luno_client = luno.LunoClient(user_data['luno_api_key'], user_data['luno_api_secret'])
 
-    webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
-    await application.bot.set_webhook(webhook_url)
-    logger.info(f"Webhook set to: {webhook_url}")
+        # Simulate a trade logic (you can replace this with your actual trade logic)
+        try:
+            # Example: Check Binance account info
+            binance_balance = binance_client.get_asset_balance(asset='USDT')
+            binance_balance = binance_balance['free'] if binance_balance else 'No balance'
+            
+            # Example: Luno API interaction (replace with actual trading logic)
+            luno_balance = luno_client.get_balance()
+            
+            update.message.reply_text(f"Binance balance: {binance_balance} USDT\nLuno balance: {luno_balance}")
+        except Exception as e:
+            update.message.reply_text(f"Error during trade: {str(e)}")
+    else:
+        update.message.reply_text('You must first set your API keys using /setkeys.')
 
-    config = Config()
-    config.bind = ["0.0.0.0:8080"]
-    await serve(app, config)
+# Main function to run the bot
+def main():
+    updater = Updater(token=TOKEN, use_context=True)
+    dp = updater.dispatcher
+    
+    # Command handlers
+    dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(CommandHandler('setkeys', setkeys))
+    dp.add_handler(CommandHandler('status', status))
+    dp.add_handler(CommandHandler('trade', trade))
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    # Start the bot
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
