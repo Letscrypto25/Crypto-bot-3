@@ -5,3 +5,4 @@ firebase-admin
 hypercorn[quart]==0.16.0
 python-binance==1.0.17
 httpx
+luno-python
