@@ -55,24 +55,53 @@ async def telegram_webhook(token):
     await telegram_app.process_update(update)
     return "OK", 200
 
-# Command handlers
+# Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Welcome to the Crypto Trading Bot! Use /setkeys to set your API keys.")
 
 async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    args = context.args
+    ref = db.reference(f'api_keys/{user_id}')
+
     try:
-        binance_key, binance_secret, luno_key, luno_secret = context.args
-        ref = db.reference(f'api_keys/{user_id}')
-        ref.set({
-            'binance_api_key': binance_key,
-            'binance_api_secret': binance_secret,
-            'luno_api_key': luno_key,
-            'luno_api_secret': luno_secret
-        })
-        await update.message.reply_text("API keys saved!")
+        if len(args) == 4:
+            binance_key, binance_secret, luno_key, luno_secret = args
+            ref.set({
+                'binance_api_key': binance_key,
+                'binance_api_secret': binance_secret,
+                'luno_api_key': luno_key,
+                'luno_api_secret': luno_secret
+            })
+            await update.message.reply_text("Binance and Luno API keys saved!")
+
+        elif len(args) == 3 and args[0].lower() == "binance":
+            _, key, secret = args
+            ref.update({
+                'binance_api_key': key,
+                'binance_api_secret': secret
+            })
+            await update.message.reply_text("Binance API keys saved!")
+
+        elif len(args) == 3 and args[0].lower() == "luno":
+            _, key, secret = args
+            ref.update({
+                'luno_api_key': key,
+                'luno_api_secret': secret
+            })
+            await update.message.reply_text("Luno API keys saved!")
+
+        else:
+            raise ValueError
+
     except Exception:
-        await update.message.reply_text("Usage: /setkeys <binance_key> <binance_secret> <luno_key> <luno_secret>")
+        await update.message.reply_text(
+            "Usage:\n"
+            "/setkeys <binance_key> <binance_secret> <luno_key> <luno_secret>\n"
+            "or\n"
+            "/setkeys binance <key> <secret>\n"
+            "/setkeys luno <key> <secret>"
+        )
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -110,7 +139,7 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
 
-# Async main function
+# Main
 async def main():
     global telegram_app
     token = os.getenv("BOT_TOKEN")
@@ -124,12 +153,10 @@ async def main():
     telegram_app.add_handler(CommandHandler("deletekeys", deletekeys))
     telegram_app.add_handler(CommandHandler("trade", trade))
 
-    # Set webhook
     webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
     await telegram_app.bot.set_webhook(webhook_url)
     logger.info(f"Webhook set to {webhook_url}")
 
-    # Run Quart server
     config = Config()
     config.bind = ["0.0.0.0:8080"]
     await serve(app, config)
