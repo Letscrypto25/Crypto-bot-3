@@ -4,8 +4,8 @@ import telegram
 from telegram.ext import CommandHandler, Updater
 import firebase_admin
 from firebase_admin import credentials, db
-from binance.client import Client
-import luno  # You must have a luno.py with LunoClient class
+from binance.client import Client as BinanceClient
+from luno_python.client import Client as LunoClient
 import requests
 
 # Setup logging
@@ -16,16 +16,20 @@ logger = logging.getLogger()
 firebase_cred_path = os.environ.get("FIREBASE_CREDENTIALS_PATH")
 if not firebase_cred_path:
     raise ValueError("FIREBASE_CREDENTIALS_PATH environment variable not set")
+
 cred = credentials.Certificate(firebase_cred_path)
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://your-firebase-url.firebaseio.com'  # <-- Replace with your actual URL
+    'databaseURL': 'https://your-firebase-url.firebaseio.com'  # Replace with your Firebase URL
 })
 
-# Telegram Bot Token from env
+# Telegram Bot Token from environment
 TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set")
+
 bot = telegram.Bot(token=TOKEN)
+updater = Updater(token=TOKEN, use_context=True)
+dispatcher = updater.dispatcher
 
 # Command: /start
 def start(update, context):
@@ -76,62 +80,21 @@ def getkeys(update, context):
     user_data = ref.get()
 
     if user_data:
-        message = (
-            f"Binance Key: {user_data.get('binance_api_key', 'Not Set')}\n"
-            f"Binance Secret: {user_data.get('binance_api_secret', 'Not Set')}\n"
-            f"Luno Key: {user_data.get('luno_api_key', 'Not Set')}\n"
-            f"Luno Secret: {user_data.get('luno_api_secret', 'Not Set')}"
+        update.message.reply_text(
+            f"Binance Key: {user_data.get('binance_api_key')}\n"
+            f"Binance Secret: {user_data.get('binance_api_secret')}\n"
+            f"Luno Key: {user_data.get('luno_api_key')}\n"
+            f"Luno Secret: {user_data.get('luno_api_secret')}"
         )
-        update.message.reply_text(message)
     else:
         update.message.reply_text("No API keys found.")
 
-# Command: /deletekeys
-def deletekeys(update, context):
-    user_id = update.message.from_user.id
-    ref = db.reference(f'api_keys/{user_id}')
-    ref.delete()
-    update.message.reply_text("Your API keys have been deleted.")
+# Register commands
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("setkeys", setkeys))
+dispatcher.add_handler(CommandHandler("status", status))
+dispatcher.add_handler(CommandHandler("getkeys", getkeys))
 
-# Command: /trade
-def trade(update, context):
-    user_id = update.message.from_user.id
-    ref = db.reference(f'api_keys/{user_id}')
-    user_data = ref.get()
-
-    if not user_data:
-        update.message.reply_text("No API keys found. Use /setkeys to add them.")
-        return
-
-    try:
-        # Binance client setup
-        binance = Client(user_data['binance_api_key'], user_data['binance_api_secret'])
-        balance = binance.get_asset_balance(asset='USDT')
-        binance_usdt = balance['free'] if balance else '0'
-
-        # Luno client setup (you must have LunoClient defined)
-        luno_client = luno.LunoClient(user_data['luno_api_key'], user_data['luno_api_secret'])
-        luno_balance = luno_client.get_balance()
-
-        update.message.reply_text(f"Binance USDT Balance: {binance_usdt}\nLuno Balance: {luno_balance}")
-    except Exception as e:
-        logger.error(f"Trade error: {e}")
-        update.message.reply_text(f"Error: {str(e)}")
-
-# Main runner
-def main():
-    updater = Updater(token=TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    dp.add_handler(CommandHandler('start', start))
-    dp.add_handler(CommandHandler('setkeys', setkeys))
-    dp.add_handler(CommandHandler('status', status))
-    dp.add_handler(CommandHandler('getkeys', getkeys))
-    dp.add_handler(CommandHandler('deletekeys', deletekeys))
-    dp.add_handler(CommandHandler('trade', trade))
-
-    updater.start_polling()
-    updater.idle()
-
-if __name__ == '__main__':
-    main()
+# Start bot
+updater.start_polling()
+updater.idle()
