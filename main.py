@@ -1,11 +1,16 @@
 import logging
 import os
 import json
+import asyncio
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
+from quart import Quart
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler,
+    ContextTypes, filters
+)
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 
@@ -15,92 +20,99 @@ logger = logging.getLogger(__name__)
 
 # Quart app
 app = Quart(__name__)
-application: Application = None  # Telegram application
-initialized = False
+application: Application = None
 
-# Initialize Firebase
+# Firebase setup
 firebase_cred = os.getenv("FIREBASE_CREDENTIALS")
 if not firebase_cred:
-    logger.error("FIREBASE_CREDENTIALS not set")
     raise ValueError("FIREBASE_CREDENTIALS not set")
 
-# Parse the credentials from the JSON string
 try:
-    cred_data = json.loads(firebase_cred)  # Convert JSON string to dictionary
-    cred = credentials.Certificate(cred_data)  # Pass dictionary to Firebase credentials
-    firebase_admin.initialize_app(cred)  # Initialize Firebase app
-    db = firestore.client()  # Create Firestore client
-    logger.info("Firebase initialized successfully.")
-except json.JSONDecodeError:
-    logger.error("Invalid JSON format for Firebase credentials.")
-    raise
+    cred_data = json.loads(firebase_cred)
+    cred = credentials.Certificate(cred_data)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    logger.info("Firebase initialized.")
 except Exception as e:
-    logger.error(f"Error initializing Firebase: {e}")
+    logger.error(f"Firebase error: {e}")
     raise
 
-# Function to save user data to Firestore
+# Save user on /start
 async def save_user(update: Update):
     user = update.effective_user
     user_ref = db.collection("users").document(str(user.id))
-
-    user_data = {
-        "telegram_id": user.id,
+    user_ref.set({
+        "telegram_id": str(user.id),
         "username": f"@{user.username}" if user.username else "unknown",
-        "user_id": "Telegram api",  # Can be updated later
+        "user_id": "Telegram api",
         "joined_at": datetime.utcnow(),
-        "last_action": "start",  # Default to "start", can update later
-        "subscribed": True,  # Default to subscribed (can be updated)
-        "balance": 100,  # Default balance (update based on actual trades)
-        "binance_api": None,  # Placeholder for Binance API key
-        "luno_api": None,  # Placeholder for Luno API key
-        "trade_status": "inactive"  # Default status
-    }
+        "last_action": "start",
+        "subscribed": True,
+        "balance": 100,
+        "binance_api_key": None,
+        "binance_api_secret": None,
+        "luno_api_key": None,
+        "luno_api_secret": None,
+        "trade_status": "inactive"
+    }, merge=True)
 
-    # Save data to Firestore
-    user_ref.set(user_data, merge=True)
-
-# /start command handler
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await save_user(update)
-    await update.message.reply_text("Hello, I am your crypto trading bot! Please send me your API keys to proceed.")
+    context.user_data['step'] = 'awaiting_binance_key'
+    await update.message.reply_text("Welcome! Please enter your *Binance API key*.", parse_mode="Markdown")
 
-# Function to handle API keys input (Binance and Luno)
-async def handle_api_keys(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Handle step-by-step API entry
+async def handle_api_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_ref = db.collection("users").document(str(user.id))
-    user_data = context.user_data
+    telegram_id = str(user.id)
+    text = update.message.text
+    step = context.user_data.get('step')
 
-    # Check the state and process API keys
-    if user_data.get('state') == 'waiting_binance_api':
-        binance_api = update.message.text
-        context.user_data['binance_api'] = binance_api
-        user_data['binance_api'] = binance_api
-        await update.message.reply_text("Now, please send me your Luno API key.")
-        context.user_data['state'] = 'waiting_luno_api'
+    doc_ref = db.collection("users").document(telegram_id)
 
-    elif user_data.get('state') == 'waiting_luno_api':
-        luno_api = update.message.text
-        context.user_data['luno_api'] = luno_api
-        user_data['luno_api'] = luno_api
-        
+    if step == 'awaiting_binance_key':
+        context.user_data['binance_key'] = text
+        context.user_data['step'] = 'awaiting_binance_secret'
+        await update.message.reply_text("Now enter your *Binance API secret*.", parse_mode="Markdown")
+
+    elif step == 'awaiting_binance_secret':
+        context.user_data['binance_secret'] = text
+        context.user_data['step'] = 'awaiting_luno_key'
+        await update.message.reply_text("Now enter your *Luno API key*.", parse_mode="Markdown")
+
+    elif step == 'awaiting_luno_key':
+        context.user_data['luno_key'] = text
+        context.user_data['step'] = 'awaiting_luno_secret'
+        await update.message.reply_text("Now enter your *Luno API secret*.", parse_mode="Markdown")
+
+    elif step == 'awaiting_luno_secret':
+        context.user_data['luno_secret'] = text
+
         # Save to Firestore
-        user_ref.set(user_data, merge=True)
-        await update.message.reply_text("Your API keys have been saved successfully!")
+        doc_ref.set({
+            "binance_api_key": context.user_data['binance_key'],
+            "binance_api_secret": context.user_data['binance_secret'],
+            "luno_api_key": context.user_data['luno_key'],
+            "luno_api_secret": context.user_data['luno_secret']
+        }, merge=True)
 
-        # Reset state after saving
-        context.user_data['state'] = None
+        context.user_data.clear()
+        await update.message.reply_text("✅ Your API keys have been saved successfully!")
 
-# Telegram command handlers
+    else:
+        await update.message.reply_text("Please type /start to begin linking your API keys.")
+
+# Main bot setup
 async def main():
     global application
     token = os.getenv("BOT_TOKEN")
     if not token:
-        logger.error("BOT_TOKEN not set")
         raise ValueError("BOT_TOKEN is not set")
 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_api_keys))  # This will capture API key input
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_api_flow))
 
     webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
     await application.bot.set_webhook(webhook_url)
