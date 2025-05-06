@@ -5,7 +5,8 @@ from telegram.ext import CommandHandler, Updater
 import firebase_admin
 from firebase_admin import credentials, db
 from binance.client import Client
-from luno_python.client import Client as LunoClient  # Official SDK
+import luno  # You must have a luno.py with LunoClient class
+import requests
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -68,6 +69,30 @@ def status(update, context):
     else:
         update.message.reply_text("No API keys found. Use /setkeys to add them.")
 
+# Command: /getkeys (shows full keys - use with caution)
+def getkeys(update, context):
+    user_id = update.message.from_user.id
+    ref = db.reference(f'api_keys/{user_id}')
+    user_data = ref.get()
+
+    if user_data:
+        message = (
+            f"Binance Key: {user_data.get('binance_api_key', 'Not Set')}\n"
+            f"Binance Secret: {user_data.get('binance_api_secret', 'Not Set')}\n"
+            f"Luno Key: {user_data.get('luno_api_key', 'Not Set')}\n"
+            f"Luno Secret: {user_data.get('luno_api_secret', 'Not Set')}"
+        )
+        update.message.reply_text(message)
+    else:
+        update.message.reply_text("No API keys found.")
+
+# Command: /deletekeys
+def deletekeys(update, context):
+    user_id = update.message.from_user.id
+    ref = db.reference(f'api_keys/{user_id}')
+    ref.delete()
+    update.message.reply_text("Your API keys have been deleted.")
+
 # Command: /trade
 def trade(update, context):
     user_id = update.message.from_user.id
@@ -79,18 +104,16 @@ def trade(update, context):
         return
 
     try:
-        # Binance balance
+        # Binance client setup
         binance = Client(user_data['binance_api_key'], user_data['binance_api_secret'])
         balance = binance.get_asset_balance(asset='USDT')
         binance_usdt = balance['free'] if balance else '0'
 
-        # Luno balance
-        luno_client = LunoClient()
-        luno_client.set_auth(user_data['luno_api_key'], user_data['luno_api_secret'])
-        luno_response = luno_client.get_balances()
-        zar_balance = next((b.balance for b in luno_response.balance if b.asset == 'ZAR'), '0')
+        # Luno client setup (you must have LunoClient defined)
+        luno_client = luno.LunoClient(user_data['luno_api_key'], user_data['luno_api_secret'])
+        luno_balance = luno_client.get_balance()
 
-        update.message.reply_text(f"Binance USDT Balance: {binance_usdt}\nLuno ZAR Balance: {zar_balance}")
+        update.message.reply_text(f"Binance USDT Balance: {binance_usdt}\nLuno Balance: {luno_balance}")
     except Exception as e:
         logger.error(f"Trade error: {e}")
         update.message.reply_text(f"Error: {str(e)}")
@@ -103,6 +126,8 @@ def main():
     dp.add_handler(CommandHandler('start', start))
     dp.add_handler(CommandHandler('setkeys', setkeys))
     dp.add_handler(CommandHandler('status', status))
+    dp.add_handler(CommandHandler('getkeys', getkeys))
+    dp.add_handler(CommandHandler('deletekeys', deletekeys))
     dp.add_handler(CommandHandler('trade', trade))
 
     updater.start_polling()
