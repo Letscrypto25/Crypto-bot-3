@@ -13,12 +13,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Now copy the rest of the application
 COPY . /app
 
-# Set environment variables for sensitive information
-ENV FIREBASE_CREDENTIALS="<your-firebase-credentials-json>"
-ENV BOT_TOKEN="<your-telegram-bot-token>"
+# Set environment variables (optional here—better to use secrets in Fly.io)
+ENV FIREBASE_CREDENTIALS="path/to/firebase-credentials.json"
+ENV BOT_TOKEN="your-telegram-bot-token"
 
-# Expose the port that the app will run on
+# Expose the port for health checks
 EXPOSE 8080
 
-# Start the application using Hypercorn
-CMD ["hypercorn", "main:app", "--bind", "0.0.0.0:8080"]
+# Start the application
+CMD ["python", "main.py"]
