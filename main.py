@@ -5,8 +5,7 @@ from telegram.ext import CommandHandler, Updater
 import firebase_admin
 from firebase_admin import credentials, db
 from binance.client import Client
-import luno  # You must have a luno.py with LunoClient class
-import requests
+from luno_python.client import Client as LunoClient  # Official SDK
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -80,16 +79,18 @@ def trade(update, context):
         return
 
     try:
-        # Binance client setup
+        # Binance balance
         binance = Client(user_data['binance_api_key'], user_data['binance_api_secret'])
         balance = binance.get_asset_balance(asset='USDT')
         binance_usdt = balance['free'] if balance else '0'
 
-        # Luno client setup (you must have LunoClient defined)
-        luno_client = luno.LunoClient(user_data['luno_api_key'], user_data['luno_api_secret'])
-        luno_balance = luno_client.get_balance()
+        # Luno balance
+        luno_client = LunoClient()
+        luno_client.set_auth(user_data['luno_api_key'], user_data['luno_api_secret'])
+        luno_response = luno_client.get_balances()
+        zar_balance = next((b.balance for b in luno_response.balance if b.asset == 'ZAR'), '0')
 
-        update.message.reply_text(f"Binance USDT Balance: {binance_usdt}\nLuno Balance: {luno_balance}")
+        update.message.reply_text(f"Binance USDT Balance: {binance_usdt}\nLuno ZAR Balance: {zar_balance}")
     except Exception as e:
         logger.error(f"Trade error: {e}")
         update.message.reply_text(f"Error: {str(e)}")
