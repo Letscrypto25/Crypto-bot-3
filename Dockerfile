@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Now copy the rest of the application
 COPY . /app
 
+# Set environment variables for sensitive information
+ENV FIREBASE_CREDENTIALS="<your-firebase-credentials-json>"
+ENV BOT_TOKEN="<your-telegram-bot-token>"
+
 # Expose the port that the app will run on
 EXPOSE 8080
 
