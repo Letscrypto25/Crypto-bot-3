@@ -1,6 +1,9 @@
 import os
 import logging
 import asyncio
+import json
+import tempfile
+
 import firebase_admin
 from firebase_admin import credentials, db
 from quart import Quart, request
@@ -15,14 +18,18 @@ from hypercorn.config import Config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load Firebase credentials
-firebase_cred_path = os.environ.get("FIREBASE_CREDENTIALS_PATH")
-if not firebase_cred_path:
-    raise ValueError("FIREBASE_CREDENTIALS_PATH not set")
-cred = credentials.Certificate(firebase_cred_path)
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'  # <-- Replace if needed
-})
+# Load Firebase credentials from env and write to a temp file
+firebase_json = os.environ.get("FIREBASE_CREDENTIALS")
+if not firebase_json:
+    raise ValueError("FIREBASE_CREDENTIALS not set")
+
+with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as tmp:
+    tmp.write(firebase_json)
+    tmp.flush()
+    cred = credentials.Certificate(tmp.name)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'  # Replace if needed
+    })
 
 # Quart app for webhook
 app = Quart(__name__)
