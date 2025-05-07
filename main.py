@@ -1,129 +1,128 @@
-import logging
 import os
 import json
-import base64
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
-
-import requests
-from fastapi import FastAPI, Request
-from aiogram import Bot, Dispatcher, types
-from aiogram.dispatcher.webhook import get_new_configured_app
-from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from dotenv import load_dotenv
-import pyrebase
+from fastapi import FastAPI, Request
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import firebase_admin
+from firebase_admin import credentials, db
+from cryptography.fernet import Fernet
+import httpx
+import hmac
+import hashlib
+import time
 
+# Load env
 load_dotenv()
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+DB_URL = os.getenv("FIREBASE_DB_URL")
+FERNET_KEY = os.getenv("FERNET_KEY")
+fernet = Fernet(FERNET_KEY)
 
-TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
-WEBHOOK_PATH = f"/webhook/{TOKEN}"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+# Firebase
+cred = credentials.Certificate("firebase.json")
+firebase_admin.initialize_app(cred, {"databaseURL": DB_URL})
 
+# Telegram + FastAPI
+app = FastAPI()
 bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
-dp.middleware.setup(LoggingMiddleware())
+application = ApplicationBuilder().token(TOKEN).build()
 
-# Firebase config
-firebase_config = {
-    "apiKey": os.getenv("FIREBASE_API_KEY"),
-    "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
-    "databaseURL": os.getenv("FIREBASE_DATABASE_URL"),
-    "projectId": os.getenv("FIREBASE_PROJECT_ID"),
-    "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
-    "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
-    "appId": os.getenv("FIREBASE_APP_ID")
-}
-firebase = pyrebase.initialize_app(firebase_config)
-db = firebase.database()
+@app.post(f"/webhook/{TOKEN}")
+async def telegram_webhook(req: Request):
+    data = await req.json()
+    await application.process_update(Update.de_json(data, bot))
+    return {"status": "ok"}
 
-# --- AES ENCRYPTION HELPERS ---
-SECRET_KEY = os.getenv("ENCRYPTION_KEY").encode()  # 16, 24, or 32 bytes
+# /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome to the Crypto Trading Bot! Use /setkeys <luno|binance> <key> <secret>")
 
-def encrypt_data(data: str):
-    cipher = AES.new(SECRET_KEY, AES.MODE_EAX)
-    nonce = cipher.nonce
-    ciphertext, tag = cipher.encrypt_and_digest(data.encode())
-    return base64.b64encode(nonce + ciphertext).decode()
-
-def decrypt_data(enc_data: str):
-    raw = base64.b64decode(enc_data)
-    nonce = raw[:16]
-    ciphertext = raw[16:]
-    cipher = AES.new(SECRET_KEY, AES.MODE_EAX, nonce=nonce)
-    return cipher.decrypt(ciphertext).decode()
-
-# --- TELEGRAM HANDLERS ---
-
-@dp.message_handler(commands=['start'])
-async def start_cmd(message: types.Message):
-    await message.answer("Welcome to the Crypto Trading Bot! Use /setkeys to set your API keys.")
-
-@dp.message_handler(commands=['setkeys'])
-async def set_keys(message: types.Message):
-    args = message.text.strip().split()
-    if len(args) != 4:
-        await message.reply("Usage: /setkeys [luno|binance] [API_KEY] [API_SECRET]")
+# /setkeys
+async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    args = context.args
+    if len(args) != 3:
+        await update.message.reply_text("Usage: /setkeys <luno|binance> <api_key> <api_secret>")
         return
 
-    exchange, api_key, api_secret = args[1].lower(), args[2], args[3]
-    if exchange not in ["luno", "binance"]:
-        await message.reply("Exchange must be 'luno' or 'binance'.")
+    exchange, api_key, api_secret = args
+    if exchange.lower() not in ["luno", "binance"]:
+        await update.message.reply_text("Exchange must be 'luno' or 'binance'")
         return
 
-    user_id = str(message.from_user.id)
-    db.child("users").child(user_id).child(exchange).set({
-        "api_key": encrypt_data(api_key),
-        "api_secret": encrypt_data(api_secret)
+    encrypted_key = fernet.encrypt(api_key.encode()).decode()
+    encrypted_secret = fernet.encrypt(api_secret.encode()).decode()
+    db.reference(f"users/{user_id}/{exchange.lower()}").set({
+        "api_key": encrypted_key,
+        "api_secret": encrypted_secret
     })
-    await message.reply(f"{exchange.capitalize()} keys saved with encryption!")
 
-@dp.message_handler(commands=['balance'])
-async def check_balance(message: types.Message):
-    user_id = str(message.from_user.id)
-    exchange = "luno"
+    await update.message.reply_text(f"{exchange.capitalize()} keys saved.")
+
+# /balance <luno|binance>
+async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    args = context.args
+    if len(args) != 1 or args[0].lower() not in ["luno", "binance"]:
+        await update.message.reply_text("Usage: /balance <luno|binance>")
+        return
+
+    exchange = args[0].lower()
+    ref = db.reference(f"users/{user_id}/{exchange}").get()
+    if not ref:
+        await update.message.reply_text(f"Please set your {exchange.capitalize()} keys using /setkeys")
+        return
 
     try:
-        keys = db.child("users").child(user_id).child(exchange).get().val()
-        if not keys:
-            await message.reply("No Luno keys found. Use /setkeys to add them.")
-            return
+        api_key = fernet.decrypt(ref["api_key"].encode()).decode()
+        api_secret = fernet.decrypt(ref["api_secret"].encode()).decode()
+    except Exception:
+        await update.message.reply_text("Decryption failed.")
+        return
 
-        key = decrypt_data(keys["api_key"])
-        secret = decrypt_data(keys["api_secret"])
+    if exchange == "luno":
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(
+                    'https://api.luno.com/api/1/balance',
+                    auth=(api_key, api_secret)
+                )
+            data = r.json()
+            if 'balance' in data:
+                balances = "\n".join([f"{b['asset']}: {b['balance']}" for b in data['balance']])
+                await update.message.reply_text(f"Luno Balance:\n{balances}")
+            else:
+                await update.message.reply_text(f"Luno error: {data}")
+        except Exception as e:
+            await update.message.reply_text("Error contacting Luno.")
+    elif exchange == "binance":
+        try:
+            timestamp = int(time.time() * 1000)
+            query = f"timestamp={timestamp}"
+            signature = hmac.new(api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
+            url = f"https://api.binance.com/api/v3/account?{query}&signature={signature}"
 
-        # Luno balance request
-        response = requests.get(
-            "https://api.luno.com/api/1/balance",
-            auth=(key, secret)
-        )
+            headers = {"X-MBX-APIKEY": api_key}
+            async with httpx.AsyncClient() as client:
+                r = await client.get(url, headers=headers)
+            data = r.json()
+            if 'balances' in data:
+                non_zero = [b for b in data['balances'] if float(b['free']) > 0]
+                balances = "\n".join([f"{b['asset']}: {b['free']}" for b in non_zero])
+                await update.message.reply_text(f"Binance Balance:\n{balances if balances else 'Empty'}")
+            else:
+                await update.message.reply_text(f"Binance error: {data}")
+        except Exception as e:
+            await update.message.reply_text("Error contacting Binance.")
 
-        if response.status_code != 200:
-            await message.reply(f"Luno API error: {response.text}")
-            return
+# Handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("setkeys", setkeys))
+application.add_handler(CommandHandler("balance", balance))
 
-        balances = response.json().get("balance", [])
-        reply = "Luno Balances:\n" + "\n".join([f"{b['asset']}: {b['balance']}" for b in balances])
-        await message.reply(reply)
-
-    except Exception as e:
-        await message.reply(f"Error fetching balance: {e}")
-
-# --- FASTAPI SERVER ---
-
-app = FastAPI()
-
-@app.post(WEBHOOK_PATH)
-async def webhook_handler(request: Request):
-    update = types.Update(**await request.json())
-    await dp.process_update(update)
-
-@app.on_event("startup")
-async def on_startup():
-    await bot.set_webhook(WEBHOOK_URL)
-    print(f"Webhook set to {WEBHOOK_URL}")
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    await bot.delete_webhook()
-    print("Webhook deleted")
+# Start
+if __name__ == "__main__":
+    import uvicorn
+    print("Running bot...")
+    uvicorn.run(app, host="0.0.0.0", port=8080)
