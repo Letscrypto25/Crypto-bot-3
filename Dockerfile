@@ -1,20 +1,17 @@
-# Use a minimal Python base image
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements first to cache dependencies
-COPY requirements.txt .
-
-# Install dependencies
+COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the app
-COPY . .
+COPY . /app
 
-# Expose the app port
+ENV FIREBASE_CREDENTIALS="{your_firebase_json_credentials}"
+ENV SECRET_KEY="{your_32_char_secret_key}"
+ENV BASE_URL="https://crypto-bot-3-white-wind-424.fly.dev"
+ENV BOT_TOKEN="{your_telegram_bot_token}"
+
 EXPOSE 8080
 
-# Run your bot server
 CMD ["python", "main.py"]
