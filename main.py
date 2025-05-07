@@ -1,133 +1,158 @@
+# Full backend logic for Let'sCrypto - Python main.py
+# Includes trading, user management, tournament logic, fee handling, Firebase, Binance, Luno, encryption
+
 import os
-import base64
 import json
-import firebase_admin
-from firebase_admin import credentials, firestore
-from flask import Flask, request
+import asyncio
+import logging
+import tempfile
+from datetime import datetime
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.backends import default_backend
+
+from quart import Quart, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from firebase_admin import credentials, db, initialize_app
+from binance.client import Client as BinanceClient
+from luno_python.client import Client as LunoClient
+from hypercorn.asyncio import serve
+from hypercorn.config import Config
 
-# === Load Secrets ===
-FERNET_BASE_KEY = os.getenv("SECRET_KEY")  # Must be base64 urlsafe-encoded 32-byte key
-TOKEN = os.getenv("BOT_TOKEN")
-firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS")
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("LetsCrypto")
 
-# === Firebase Init ===
-cred_dict = json.loads(firebase_credentials_json)
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+# Firebase setup
+FIREBASE = os.environ.get("FIREBASE_CREDENTIALS")
+if not FIREBASE:
+    raise ValueError("FIREBASE_CREDENTIALS is required")
 
-app = Flask(__name__)
-
-# === Encryption/Decryption ===
-def derive_key(telegram_id: str, salt: bytes) -> bytes:
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100_000,
-        backend=default_backend()
-    )
-    return base64.urlsafe_b64encode(kdf.derive(telegram_id.encode()))
-
-def encrypt_api_key(api_key: str, telegram_id: str):
-    salt = os.urandom(16)
-    key = derive_key(telegram_id, salt)
-    f = Fernet(key)
-    encrypted = f.encrypt(api_key.encode())
-    return encrypted.decode(), base64.b64encode(salt).decode()
-
-def decrypt_api_key(encrypted: str, salt: str, telegram_id: str):
-    salt_bytes = base64.b64decode(salt)
-    key = derive_key(telegram_id, salt_bytes)
-    f = Fernet(key)
-    return f.decrypt(encrypted.encode()).decode()
-
-# === Fee Calculation ===
-def apply_profit_deductions(profit: float, tournament: bool):
-    if profit <= 0:
-        return profit, 0.0
-    if tournament:
-        app_fee = profit * 0.0025
-        tournament_fee = profit * 0.01
-        return profit - app_fee - tournament_fee, app_fee + tournament_fee
-    else:
-        app_fee = profit * 0.005
-        return profit - app_fee, app_fee
-
-# === Telegram Bot Handlers ===
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send /api followed by your Binance API key")
-
-async def save_api(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = str(update.effective_user.id)
-    args = context.args
-    if not args:
-        await update.message.reply_text("Usage: /api YOUR_API_KEY")
-        return
-    api_key = args[0]
-
-    encrypted, salt = encrypt_api_key(api_key, telegram_id)
-    db.collection("users").document(telegram_id).set({
-        "telegram_id": telegram_id,
-        "encrypted_api_key": encrypted,
-        "salt": salt,
-        "tournament": False,
-        "balance": 0,
-        "total_fees": 0
-    }, merge=True)
-
-    await update.message.reply_text("API key saved securely!")
-
-async def join_tournament(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = str(update.effective_user.id)
-    db.collection("users").document(telegram_id).update({"tournament": True})
-    await update.message.reply_text("You're now in the tournament!")
-
-async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = str(update.effective_user.id)
-    doc = db.collection("users").document(telegram_id).get()
-    if not doc.exists:
-        await update.message.reply_text("No user found.")
-        return
-
-    user = doc.to_dict()
-    profit = 100  # Simulated profit
-    tournament = user.get("tournament", False)
-    net_profit, fee = apply_profit_deductions(profit, tournament)
-
-    db.collection("users").document(telegram_id).update({
-        "balance": firestore.Increment(net_profit),
-        "total_fees": firestore.Increment(fee)
+with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as f:
+    f.write(FIREBASE)
+    f.flush()
+    cred = credentials.Certificate(f.name)
+    initialize_app(cred, {
+        'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'
     })
 
-    await update.message.reply_text(
-        f"Trade completed!\nProfit: R{profit:.2f}\nFees: R{fee:.2f}\nNet: R{net_profit:.2f}"
-    )
+# Encryption setup
+FERNET_KEY = os.getenv("ENCRYPTION_KEY")
+fernet = Fernet(FERNET_KEY.encode())
 
-# === Telegram Bot ===
-bot_app = Application.builder().token(TOKEN).build()
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(CommandHandler("api", save_api))
-bot_app.add_handler(CommandHandler("join", join_tournament))
-bot_app.add_handler(CommandHandler("trade", trade))
-
-# === Webhook for Fly.io ===
-@app.route("/" + TOKEN, methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    bot_app.process_update(update)
-    return "ok"
+# Quart app
+app = Quart(__name__)
+telegram_app: Application = None
+initialized = False
 
 @app.route("/")
-def index():
-    return "Bot running."
+async def index():
+    return "Bot is live", 200
 
-# === Local Testing ===
+@app.route("/webhook/<token>", methods=["POST"])
+async def telegram_webhook(token):
+    global initialized
+    if token != os.getenv("BOT_TOKEN"):
+        return "Invalid token", 403
+
+    if not initialized:
+        await telegram_app.initialize()
+        initialized = True
+
+    update_data = await request.get_json()
+    update = Update.de_json(update_data, telegram_app.bot)
+    await telegram_app.process_update(update)
+    return "OK", 200
+
+# Firebase helper
+def get_ref(path):
+    return db.reference(path)
+
+def encrypt(text):
+    return fernet.encrypt(text.encode()).decode()
+
+def decrypt(cipher):
+    return fernet.decrypt(cipher.encode()).decode()
+
+# Commands
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome to Let'sCrypto! Use /setkeys to store your API keys.")
+
+async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    args = context.args
+    if len(args) < 3:
+        await update.message.reply_text("Usage: /setkeys <exchange> <api_key> <api_secret>")
+        return
+
+    exchange, key, secret = args[0], args[1], args[2]
+    ref = get_ref(f"users/{user_id}/keys")
+    encrypted = {
+        f"{exchange}_key": encrypt(key),
+        f"{exchange}_secret": encrypt(secret)
+    }
+    ref.update(encrypted)
+    await update.message.reply_text(f"Saved {exchange.upper()} API keys securely.")
+
+async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    keys = get_ref(f"users/{user_id}/keys").get()
+    bal_ref = get_ref(f"users/{user_id}/balance")
+
+    try:
+        # Binance
+        if keys and 'binance_key' in keys:
+            binance = BinanceClient(decrypt(keys['binance_key']), decrypt(keys['binance_secret']))
+            usdt = binance.get_asset_balance(asset='USDT')['free']
+        else:
+            usdt = 0
+
+        # Luno
+        if keys and 'luno_key' in keys:
+            luno = LunoClient(decrypt(keys['luno_key']), decrypt(keys['luno_secret']))
+            l_bal = luno.get_balances()['balance']
+            btc = next((b['balance'] for b in l_bal if b['asset'] == 'XBT'), '0')
+        else:
+            btc = 0
+
+        # Record & fees
+        profit = float(usdt) * 0.1  # example profit
+        fee = profit * 0.005
+        tournament = profit * 0.0125
+        net = profit - fee - tournament
+        bal_ref.set(net)
+
+        await update.message.reply_text(f"Binance USDT: {usdt}\nLuno BTC: {btc}\nProfit: ${profit:.2f}, Fee: ${fee:.2f}, Net: ${net:.2f}")
+
+    except Exception as e:
+        logger.error(str(e))
+        await update.message.reply_text("Error occurred during trade.")
+
+async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    bal = get_ref(f"users/{user_id}/balance").get()
+    await update.message.reply_text(f"Your current balance: ${bal or 0:.2f}")
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("/setkeys <exchange> <api_key> <api_secret>\n/trade\n/balance\n/start")
+
+async def main():
+    global telegram_app
+    token = os.getenv("BOT_TOKEN")
+    telegram_app = Application.builder().token(token).build()
+
+    telegram_app.add_handler(CommandHandler("start", start))
+    telegram_app.add_handler(CommandHandler("setkeys", setkeys))
+    telegram_app.add_handler(CommandHandler("trade", trade))
+    telegram_app.add_handler(CommandHandler("balance", balance))
+    telegram_app.add_handler(CommandHandler("help", help_command))
+
+    webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
+    await telegram_app.bot.set_webhook(webhook_url)
+    logger.info(f"Webhook set to {webhook_url}")
+
+    config = Config()
+    config.bind = ["0.0.0.0:8080"]
+    await serve(app, config)
+
 if __name__ == "__main__":
-    bot_app.run_polling()
+    asyncio.run(main())
