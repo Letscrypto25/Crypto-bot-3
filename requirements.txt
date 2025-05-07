@@ -6,3 +6,4 @@ hypercorn[quart]==0.16.0
 python-binance==1.0.17
 httpx==0.25.2
 luno-python==0.0.10
+cryptography
