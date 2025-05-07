@@ -1,5 +1,6 @@
 import os
 import base64
+import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 from flask import Flask, request
@@ -10,21 +11,26 @@ from cryptography.hazmat.backends import default_backend
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# === Setup ===
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-cred = credentials.Certificate("firebase_credentials.json")
+# === Load Secrets ===
+FERNET_BASE_KEY = os.getenv("SECRET_KEY")  # Must be base64 urlsafe-encoded 32-byte key
+TOKEN = os.getenv("BOT_TOKEN")
+firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS")
+
+# === Firebase Init ===
+cred_dict = json.loads(firebase_credentials_json)
+cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
 app = Flask(__name__)
 
-# === Key Functions ===
+# === Encryption/Decryption ===
 def derive_key(telegram_id: str, salt: bytes) -> bytes:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
-        iterations=100000,
+        iterations=100_000,
         backend=default_backend()
     )
     return base64.urlsafe_b64encode(kdf.derive(telegram_id.encode()))
@@ -42,11 +48,10 @@ def decrypt_api_key(encrypted: str, salt: str, telegram_id: str):
     f = Fernet(key)
     return f.decrypt(encrypted.encode()).decode()
 
-# === Fee Logic ===
+# === Fee Calculation ===
 def apply_profit_deductions(profit: float, tournament: bool):
     if profit <= 0:
         return profit, 0.0
-
     if tournament:
         app_fee = profit * 0.0025
         tournament_fee = profit * 0.01
@@ -55,7 +60,7 @@ def apply_profit_deductions(profit: float, tournament: bool):
         app_fee = profit * 0.005
         return profit - app_fee, app_fee
 
-# === Bot Commands ===
+# === Telegram Bot Handlers ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Send /api followed by your Binance API key")
 
@@ -84,7 +89,6 @@ async def join_tournament(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.collection("users").document(telegram_id).update({"tournament": True})
     await update.message.reply_text("You're now in the tournament!")
 
-# === Simulate a trade ===
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = str(update.effective_user.id)
     doc = db.collection("users").document(telegram_id).get()
@@ -93,8 +97,7 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user = doc.to_dict()
-    # Simulate trade with random profit
-    profit = 100  # Simulated R100 profit
+    profit = 100  # Simulated profit
     tournament = user.get("tournament", False)
     net_profit, fee = apply_profit_deductions(profit, tournament)
 
@@ -107,14 +110,14 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Trade completed!\nProfit: R{profit:.2f}\nFees: R{fee:.2f}\nNet: R{net_profit:.2f}"
     )
 
-# === Telegram App ===
+# === Telegram Bot ===
 bot_app = Application.builder().token(TOKEN).build()
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("api", save_api))
 bot_app.add_handler(CommandHandler("join", join_tournament))
 bot_app.add_handler(CommandHandler("trade", trade))
 
-# === Flask server for Fly.io ===
+# === Webhook for Fly.io ===
 @app.route("/" + TOKEN, methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot_app.bot)
@@ -125,5 +128,6 @@ def webhook():
 def index():
     return "Bot running."
 
+# === Local Testing ===
 if __name__ == "__main__":
     bot_app.run_polling()
