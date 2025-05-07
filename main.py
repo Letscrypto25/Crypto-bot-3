@@ -1,153 +1,129 @@
-import os
 import logging
-import asyncio
+import os
 import json
-import tempfile
+import base64
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 
-import firebase_admin
-from firebase_admin import credentials, db
-from quart import Quart, request
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-from binance.client import Client
-from luno_python.client import Client as LunoClient
-from hypercorn.asyncio import serve
-from hypercorn.config import Config
+import requests
+from fastapi import FastAPI, Request
+from aiogram import Bot, Dispatcher, types
+from aiogram.dispatcher.webhook import get_new_configured_app
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
+from dotenv import load_dotenv
+import pyrebase
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+load_dotenv()
 
-# Load Firebase credentials from env and write to a temp file
-firebase_json = os.environ.get("FIREBASE_CREDENTIALS")
-if not firebase_json:
-    raise ValueError("FIREBASE_CREDENTIALS not set")
+TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
+WEBHOOK_PATH = f"/webhook/{TOKEN}"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as tmp:
-    tmp.write(firebase_json)
-    tmp.flush()
-    cred = credentials.Certificate(tmp.name)
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'  # Replace if needed
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
+dp.middleware.setup(LoggingMiddleware())
+
+# Firebase config
+firebase_config = {
+    "apiKey": os.getenv("FIREBASE_API_KEY"),
+    "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
+    "databaseURL": os.getenv("FIREBASE_DATABASE_URL"),
+    "projectId": os.getenv("FIREBASE_PROJECT_ID"),
+    "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
+    "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
+    "appId": os.getenv("FIREBASE_APP_ID")
+}
+firebase = pyrebase.initialize_app(firebase_config)
+db = firebase.database()
+
+# --- AES ENCRYPTION HELPERS ---
+SECRET_KEY = os.getenv("ENCRYPTION_KEY").encode()  # 16, 24, or 32 bytes
+
+def encrypt_data(data: str):
+    cipher = AES.new(SECRET_KEY, AES.MODE_EAX)
+    nonce = cipher.nonce
+    ciphertext, tag = cipher.encrypt_and_digest(data.encode())
+    return base64.b64encode(nonce + ciphertext).decode()
+
+def decrypt_data(enc_data: str):
+    raw = base64.b64decode(enc_data)
+    nonce = raw[:16]
+    ciphertext = raw[16:]
+    cipher = AES.new(SECRET_KEY, AES.MODE_EAX, nonce=nonce)
+    return cipher.decrypt(ciphertext).decode()
+
+# --- TELEGRAM HANDLERS ---
+
+@dp.message_handler(commands=['start'])
+async def start_cmd(message: types.Message):
+    await message.answer("Welcome to the Crypto Trading Bot! Use /setkeys to set your API keys.")
+
+@dp.message_handler(commands=['setkeys'])
+async def set_keys(message: types.Message):
+    args = message.text.strip().split()
+    if len(args) != 4:
+        await message.reply("Usage: /setkeys [luno|binance] [API_KEY] [API_SECRET]")
+        return
+
+    exchange, api_key, api_secret = args[1].lower(), args[2], args[3]
+    if exchange not in ["luno", "binance"]:
+        await message.reply("Exchange must be 'luno' or 'binance'.")
+        return
+
+    user_id = str(message.from_user.id)
+    db.child("users").child(user_id).child(exchange).set({
+        "api_key": encrypt_data(api_key),
+        "api_secret": encrypt_data(api_secret)
     })
+    await message.reply(f"{exchange.capitalize()} keys saved with encryption!")
 
-# Quart app for webhook
-app = Quart(__name__)
-telegram_app: Application = None
-initialized = False
+@dp.message_handler(commands=['balance'])
+async def check_balance(message: types.Message):
+    user_id = str(message.from_user.id)
+    exchange = "luno"
 
-@app.route("/")
-async def health():
-    return "OK", 200
-
-@app.route("/webhook/<token>", methods=["POST"])
-async def telegram_webhook(token):
-    global telegram_app, initialized
-    if token != os.getenv("BOT_TOKEN"):
-        return "Unauthorized", 403
-
-    if not initialized:
-        await telegram_app.initialize()
-        initialized = True
-
-    update_data = await request.get_json()
-    update = Update.de_json(update_data, telegram_app.bot)
-    await telegram_app.process_update(update)
-    return "OK", 200
-
-# Command handlers
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to the Crypto Trading Bot! Use /setkeys to set your API keys.")
-
-async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    args = context.args
-
-    if len(args) != 3:
-        await update.message.reply_text("Usage: /setkeys <binance|luno> <api_key> <api_secret>")
-        return
-
-    platform, api_key, api_secret = args
-    if platform.lower() not in ["binance", "luno"]:
-        await update.message.reply_text("Platform must be either 'binance' or 'luno'")
-        return
-
-    ref = db.reference(f'api_keys/{user_id}')
-    current = ref.get() or {}
-
-    if platform.lower() == "binance":
-        current.update({
-            'binance_api_key': api_key,
-            'binance_api_secret': api_secret
-        })
-    elif platform.lower() == "luno":
-        current.update({
-            'luno_api_key': api_key,
-            'luno_api_secret': api_secret
-        })
-
-    ref.set(current)
-    await update.message.reply_text(f"{platform.capitalize()} keys saved!")
-
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    ref = db.reference(f'api_keys/{user_id}')
-    data = ref.get()
-    if data:
-        msg = "\n".join([
-            f"Binance API Key: {'Set' if data.get('binance_api_key') else 'Not Set'}",
-            f"Binance Secret: {'Set' if data.get('binance_api_secret') else 'Not Set'}",
-            f"Luno API Key: {'Set' if data.get('luno_api_key') else 'Not Set'}",
-            f"Luno Secret: {'Set' if data.get('luno_api_secret') else 'Not Set'}"
-        ])
-        await update.message.reply_text(msg)
-    else:
-        await update.message.reply_text("No API keys found. Use /setkeys.")
-
-async def deletekeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    db.reference(f'api_keys/{user_id}').delete()
-    await update.message.reply_text("Your keys have been deleted.")
-
-async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    data = db.reference(f'api_keys/{user_id}').get()
-    if not data:
-        await update.message.reply_text("No API keys found. Use /setkeys.")
-        return
     try:
-        binance = Client(data['binance_api_key'], data['binance_api_secret'])
-        b_usdt = binance.get_asset_balance(asset='USDT')['free']
-        luno = LunoClient(data['luno_api_key'], data['luno_api_secret'])
-        luno_balances = luno.get_balances()['balance']
-        l_bal = "\n".join(f"{b['asset']}: {b['balance']}" for b in luno_balances)
-        await update.message.reply_text(f"Binance USDT: {b_usdt}\nLuno:\n{l_bal}")
+        keys = db.child("users").child(user_id).child(exchange).get().val()
+        if not keys:
+            await message.reply("No Luno keys found. Use /setkeys to add them.")
+            return
+
+        key = decrypt_data(keys["api_key"])
+        secret = decrypt_data(keys["api_secret"])
+
+        # Luno balance request
+        response = requests.get(
+            "https://api.luno.com/api/1/balance",
+            auth=(key, secret)
+        )
+
+        if response.status_code != 200:
+            await message.reply(f"Luno API error: {response.text}")
+            return
+
+        balances = response.json().get("balance", [])
+        reply = "Luno Balances:\n" + "\n".join([f"{b['asset']}: {b['balance']}" for b in balances])
+        await message.reply(reply)
+
     except Exception as e:
-        await update.message.reply_text(f"Error: {str(e)}")
+        await message.reply(f"Error fetching balance: {e}")
 
-# Async main function
-async def main():
-    global telegram_app
-    token = os.getenv("BOT_TOKEN")
-    if not token:
-        raise ValueError("BOT_TOKEN not set")
+# --- FASTAPI SERVER ---
 
-    telegram_app = Application.builder().token(token).build()
-    telegram_app.add_handler(CommandHandler("start", start))
-    telegram_app.add_handler(CommandHandler("setkeys", setkeys))
-    telegram_app.add_handler(CommandHandler("status", status))
-    telegram_app.add_handler(CommandHandler("deletekeys", deletekeys))
-    telegram_app.add_handler(CommandHandler("trade", trade))
+app = FastAPI()
 
-    # Set webhook
-    webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{token}"
-    await telegram_app.bot.set_webhook(webhook_url)
-    logger.info(f"Webhook set to {webhook_url}")
+@app.post(WEBHOOK_PATH)
+async def webhook_handler(request: Request):
+    update = types.Update(**await request.json())
+    await dp.process_update(update)
 
-    # Run Quart server
-    config = Config()
-    config.bind = ["0.0.0.0:8080"]
-    await serve(app, config)
+@app.on_event("startup")
+async def on_startup():
+    await bot.set_webhook(WEBHOOK_URL)
+    print(f"Webhook set to {WEBHOOK_URL}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@app.on_event("shutdown")
+async def on_shutdown():
+    await bot.delete_webhook()
+    print("Webhook deleted")
