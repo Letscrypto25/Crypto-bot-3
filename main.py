@@ -36,8 +36,11 @@ with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as f:
     })
 
 # Encryption setup
-FERNET_KEY = os.getenv("ENCRYPTION_KEY")
-fernet = Fernet(FERNET_KEY.encode())
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY is required")
+
+fernet = Fernet(SECRET_KEY.encode())
 
 # Quart app
 app = Quart(__name__)
