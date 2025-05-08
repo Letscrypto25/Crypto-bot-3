@@ -28,7 +28,7 @@ with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as tmp
     tmp.flush()
     cred = credentials.Certificate(tmp.name)
     firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'  # Replace if needed
+        'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'
     })
 
 # Encryption
@@ -40,7 +40,6 @@ fernet = Fernet(SECRET_KEY)
 # Quart app for webhook
 app = Quart(__name__)
 telegram_app: Application = None
-initialized = False
 
 @app.route("/")
 async def health():
@@ -48,13 +47,8 @@ async def health():
 
 @app.route("/webhook/<token>", methods=["POST"])
 async def telegram_webhook(token):
-    global telegram_app, initialized
     if token != os.getenv("BOT_TOKEN"):
         return "Unauthorized", 403
-
-    if not initialized:
-        await telegram_app.initialize()
-        initialized = True
 
     update_data = await request.get_json()
     update = Update.de_json(update_data, telegram_app.bot)
@@ -69,20 +63,15 @@ async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
         if len(context.args) != 4:
-            raise ValueError("Usage: /setkeys <binance_key> <binance_secret> <luno_key> <luno_secret>")
+            raise ValueError("Usage: /setkeys <exchange> <api_key> <api_secret>")
 
         exchange_type = context.args[0].lower()
-
-        # Only accept valid exchange types
         if exchange_type not in ['binance', 'luno']:
             raise ValueError("Invalid exchange type. Please specify 'binance' or 'luno'.")
 
         key, secret = context.args[1], context.args[2]
-
-        # Encrypt the API keys
         encrypted_key = fernet.encrypt(key.encode()).decode()
         encrypted_secret = fernet.encrypt(secret.encode()).decode()
-
         ref = db.reference(f'api_keys/{user_id}')
 
         if exchange_type == "binance":
@@ -133,18 +122,14 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # Decrypt the keys
         binance_key = fernet.decrypt(data['binance_api_key'].encode()).decode()
         binance_secret = fernet.decrypt(data['binance_api_secret'].encode()).decode()
-
         luno_key = fernet.decrypt(data['luno_api_key'].encode()).decode()
         luno_secret = fernet.decrypt(data['luno_api_secret'].encode()).decode()
 
-        # Binance client setup
         binance = Client(binance_key, binance_secret)
         b_usdt = binance.get_asset_balance(asset='USDT')['free']
 
-        # Luno client setup
         luno = LunoClient(luno_key, luno_secret)
         luno_balances = luno.get_balances()['balance']
         l_bal = "\n".join(f"{b['asset']}: {b['balance']}" for b in luno_balances)
@@ -162,18 +147,20 @@ async def main():
         raise ValueError("BOT_TOKEN not set")
 
     telegram_app = Application.builder().token(token).build()
+
     telegram_app.add_handler(CommandHandler("start", start))
     telegram_app.add_handler(CommandHandler("setkeys", setkeys))
     telegram_app.add_handler(CommandHandler("status", status))
     telegram_app.add_handler(CommandHandler("deletekeys", deletekeys))
     telegram_app.add_handler(CommandHandler("balance", balance))
 
-    # Set webhook
+    await telegram_app.initialize()
+    await telegram_app.start()
+
     BASE_URL = os.getenv("BASE_URL", "https://crypto-bot-3-white-wind-424.fly.dev")
     await telegram_app.bot.set_webhook(f"{BASE_URL}/webhook/{token}")
     logger.info(f"Webhook set to {BASE_URL}/webhook/{token}")
 
-    # Run Quart server
     config = Config()
     config.bind = ["0.0.0.0:8080"]
     await serve(app, config)
