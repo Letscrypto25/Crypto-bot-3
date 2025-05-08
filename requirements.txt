@@ -10,3 +10,4 @@ cryptography==38.0.1
 fastapi
 python-dotenv
 uvicorn
+sentry-sdk
