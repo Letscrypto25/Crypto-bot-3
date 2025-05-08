@@ -31,13 +31,13 @@ with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as tmp
         'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'
     })
 
-# Encryption
+# Encryption setup
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY not set in environment variables")
 fernet = Fernet(SECRET_KEY)
 
-# Quart app for webhook
+# Quart app
 app = Quart(__name__)
 telegram_app: Application = None
 
@@ -49,97 +49,105 @@ async def health():
 async def telegram_webhook(token):
     if token != os.getenv("BOT_TOKEN"):
         return "Unauthorized", 403
-
     update_data = await request.get_json()
+    logger.info(f"Webhook received: {json.dumps(update_data)}")
+
     update = Update.de_json(update_data, telegram_app.bot)
+    print(">> FULL TEXT MESSAGE:", update.message.text if update.message else "No message")
     await telegram_app.process_update(update)
     return "OK", 200
 
-# Command handlers
+# Command: /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to the Crypto Trading Bot! Use /setkeys to set your API keys.")
+    await update.message.reply_text("Welcome to the Crypto Trading Bot! Use /setkeys to set your API keys.\n\nExample:\n/setkeys binance BINANCE_API_KEY BINANCE_SECRET")
 
+# Command: /setkeys <exchange> <api_key> <api_secret>
 async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
-        if len(context.args) != 4:
+        if len(context.args) != 3:
             raise ValueError("Usage: /setkeys <exchange> <api_key> <api_secret>")
 
-        exchange_type = context.args[0].lower()
-        if exchange_type not in ['binance', 'luno']:
-            raise ValueError("Invalid exchange type. Please specify 'binance' or 'luno'.")
+        exchange = context.args[0].lower()
+        if exchange not in ["binance", "luno"]:
+            raise ValueError("Exchange must be 'binance' or 'luno'")
 
-        key, secret = context.args[1], context.args[2]
-        encrypted_key = fernet.encrypt(key.encode()).decode()
-        encrypted_secret = fernet.encrypt(secret.encode()).decode()
+        api_key, api_secret = context.args[1], context.args[2]
+        encrypted_key = fernet.encrypt(api_key.encode()).decode()
+        encrypted_secret = fernet.encrypt(api_secret.encode()).decode()
+
         ref = db.reference(f'api_keys/{user_id}')
-
-        if exchange_type == "binance":
+        if exchange == "binance":
             ref.update({
                 'binance_api_key': encrypted_key,
                 'binance_api_secret': encrypted_secret
             })
-        elif exchange_type == "luno":
+        else:
             ref.update({
                 'luno_api_key': encrypted_key,
                 'luno_api_secret': encrypted_secret
             })
 
-        await update.message.reply_text(f"API keys for {exchange_type} saved successfully!")
+        await update.message.reply_text(f"{exchange.capitalize()} keys saved successfully.")
     except ValueError as e:
         await update.message.reply_text(str(e))
     except Exception as e:
-        logger.error(f"Error in /setkeys: {e}")
-        await update.message.reply_text(f"Error: {str(e)}")
+        logger.error(f"SetKeys error: {e}")
+        await update.message.reply_text("Something went wrong while saving your keys.")
 
+# Command: /status
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     ref = db.reference(f'api_keys/{user_id}')
     data = ref.get()
 
-    if data:
-        msg = "\n".join([
-            f"Binance API Key: {'Set' if data.get('binance_api_key') else 'Not Set'}",
-            f"Binance Secret: {'Set' if data.get('binance_api_secret') else 'Not Set'}",
-            f"Luno API Key: {'Set' if data.get('luno_api_key') else 'Not Set'}",
-            f"Luno Secret: {'Set' if data.get('luno_api_secret') else 'Not Set'}"
-        ])
-        await update.message.reply_text(msg)
-    else:
-        await update.message.reply_text("No API keys found. Use /setkeys.")
+    if not data:
+        await update.message.reply_text("No API keys saved yet. Use /setkeys.")
+        return
 
+    response = [
+        f"Binance API Key: {'Set' if data.get('binance_api_key') else 'Not Set'}",
+        f"Binance Secret: {'Set' if data.get('binance_api_secret') else 'Not Set'}",
+        f"Luno API Key: {'Set' if data.get('luno_api_key') else 'Not Set'}",
+        f"Luno Secret: {'Set' if data.get('luno_api_secret') else 'Not Set'}"
+    ]
+    await update.message.reply_text("\n".join(response))
+
+# Command: /deletekeys
 async def deletekeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db.reference(f'api_keys/{user_id}').delete()
-    await update.message.reply_text("Your keys have been deleted.")
+    await update.message.reply_text("Your saved keys have been deleted.")
 
+# Command: /balance
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     data = db.reference(f'api_keys/{user_id}').get()
 
     if not data:
-        await update.message.reply_text("No API keys found. Use /setkeys.")
+        await update.message.reply_text("No keys found. Use /setkeys.")
         return
 
     try:
         binance_key = fernet.decrypt(data['binance_api_key'].encode()).decode()
         binance_secret = fernet.decrypt(data['binance_api_secret'].encode()).decode()
+        binance = Client(binance_key, binance_secret)
+        b_balance = binance.get_asset_balance(asset='USDT')
+        b_usdt = b_balance['free'] if b_balance else '0.0'
+
         luno_key = fernet.decrypt(data['luno_api_key'].encode()).decode()
         luno_secret = fernet.decrypt(data['luno_api_secret'].encode()).decode()
+        luno = LunoClient()
+        luno.set_auth(luno_key, luno_secret)
+        l_bal = luno.get_balances()['balance']
+        luno_summary = "\n".join([f"{b['asset']}: {b['balance']}" for b in l_bal])
 
-        binance = Client(binance_key, binance_secret)
-        b_usdt = binance.get_asset_balance(asset='USDT')['free']
-
-        luno = LunoClient(luno_key, luno_secret)
-        luno_balances = luno.get_balances()['balance']
-        l_bal = "\n".join(f"{b['asset']}: {b['balance']}" for b in luno_balances)
-
-        await update.message.reply_text(f"Binance USDT: {b_usdt}\nLuno:\n{l_bal}")
+        await update.message.reply_text(f"Binance USDT: {b_usdt}\n\nLuno:\n{luno_summary}")
     except Exception as e:
-        logger.error(f"Balance error: {e}")
-        await update.message.reply_text(f"Error: {str(e)}")
+        logger.error(f"Balance fetch error: {e}")
+        await update.message.reply_text(f"Error fetching balances: {e}")
 
-# Async main function
+# Start bot + Quart server
 async def main():
     global telegram_app
     token = os.getenv("BOT_TOKEN")
