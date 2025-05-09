@@ -2894,3 +2894,827 @@ async def cooldown(update, context):
     activate_cooldown(telegram_id, duration_minutes=60)
     await update.message.reply_text("Cooldown activated. Trading paused for 1 hour.")
 
+async def edge_ai_emotion_check(user_id, trade_context):
+            """Analyze emotional trading patterns and send feedback via Telegram."""
+            user_doc = db.collection("users").document(str(user_id)).get()
+            if not user_doc.exists:
+                return
+
+            data = user_doc.to_dict()
+            trade_history = data.get("trade_history", [])
+            recent_trades = trade_history[-5:]
+
+            # Emotion detection logic: overtrading, revenge trading, panic exits
+            overtrading = sum(1 for t in recent_trades if t["interval"] < 300) >= 3
+            revenge_trading = sum(1 for t in recent_trades if t["result"] == "loss") >= 3
+            panic_exit = any(t["profit_pct"] < -5 for t in recent_trades)
+
+            feedback_msgs = []
+            if overtrading:
+                feedback_msgs.append("You're placing trades too quickly. Breathe and trust your setups.")
+            if revenge_trading:
+                feedback_msgs.append("It looks like you're revenge trading. Consider taking a break.")
+            if panic_exit:
+                feedback_msgs.append("You exited a trade too early. Make sure you stick to your plan.")
+
+            if feedback_msgs:
+                full_message = "\n".join(feedback_msgs)
+                await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
+
+        async def edge_ai_confirm_risky_trade(user_id, signal):
+            """Prompt user to confirm risky trade patterns before execution."""
+            risk_detected = False
+            if signal["rsi"] > 80 or signal["rsi"] < 20:
+                risk_detected = True
+
+            if risk_detected:
+                prompt = (
+                    "Edge AI has detected a high-risk trade setup.\n"
+                    f"Pair: {signal['pair']}\n"
+                    f"RSI: {signal['rsi']}\n"
+                    "Are you sure you want to proceed?"
+                )
+                await send_telegram_message(user_id, prompt + "\nReply with YES to confirm.")
+
+        async def monitor_confirmations():
+            """Listen for confirmation responses on risky trades."""
+            # This is handled by a Telegram command handler where users reply with YES
+
+        async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            user_id = update.effective_user.id
+            text = update.message.text.strip().upper()
+            if text == "YES":
+                # Mark user confirmed
+                confirmation_flags[user_id] = True
+                await update.message.reply_text("Confirmed. Proceeding with trade.")
+            else:
+                await update.message.reply_text("Trade cancelled due to no confirmation.")
+
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_reply))
+
+        def update_trophy_count(user_id, trophies):
+            """Update user's trophy count in Firebase."""
+            user_ref = db.collection("users").document(str(user_id))
+            user_ref.set({"trophies": firestore.Increment(trophies)}, merge=True)
+
+        def reset_trophies_every_season():
+            """Reset all user trophies and rank top 100 for payout."""
+            users_ref = db.collection("users")
+            all_users = users_ref.stream()
+            trophy_leaderboard = []
+
+            for doc in all_users:
+                data = doc.to_dict()
+                trophies = data.get("trophies", 0)
+                trophy_leaderboard.append((doc.id, trophies))
+
+            trophy_leaderboard.sort(key=lambda x: x[1], reverse=True)
+            top_100 = trophy_leaderboard[:100]
+
+            season_pool = get_season_pool_amount()
+            distribute_trophy_rewards(top_100, season_pool)
+
+            # Reset all trophies
+            for user_id, _ in trophy_leaderboard:
+                users_ref.document(user_id).update({"trophies": 0})
+
+        def get_season_pool_amount():
+            """Placeholder to fetch the current 6-month trophy pool balance."""
+            return 1000  # Simulated value for now
+
+        def distribute_trophy_rewards(top_users, total_amount):
+            """Distribute trophy reset rewards to top 100 users."""
+            reward_structure = [0.20, 0.15, 0.10] + [0.01]*97  # Descending reward
+            for idx, (user_id, _) in enumerate(top_users):
+                reward_pct = reward_structure[idx]
+                reward = total_amount * reward_pct
+                send_telegram_message(user_id, f"You earned {reward:.2f} from the trophy reset pool!")
+
+        def create_hall_of_fame_entry(user_id, trophy_count):
+            """Add user to hall of fame list after reset."""
+            db.collection("hall_of_fame").add({
+                "user_id": user_id,
+                "trophies": trophy_count,
+                "timestamp": datetime.utcnow()
+            })
+
+def fetch_hall_of_fame():
+            """Retrieve top Hall of Fame entries."""
+            entries = db.collection("hall_of_fame").order_by("trophies", direction=firestore.Query.DESCENDING).limit(100).stream()
+            leaderboard = []
+            for entry in entries:
+                data = entry.to_dict()
+                leaderboard.append({
+                    "user_id": data.get("user_id"),
+                    "trophies": data.get("trophies"),
+                    "timestamp": data.get("timestamp").strftime("%Y-%m-%d")
+                })
+            return leaderboard
+
+        @app.route("/hall-of-fame")
+        def hall_of_fame_route():
+            """Web route to show Hall of Fame leaderboard."""
+            leaderboard = fetch_hall_of_fame()
+            return jsonify(leaderboard)
+
+        async def send_tournament_results():
+            """Send final daily/weekly tournament results via Telegram."""
+            leaderboard = calculate_tournament_leaderboard()
+            for idx, (user_id, score) in enumerate(leaderboard):
+                rank = idx + 1
+                message = f"**Tournament Result**\nRank: {rank}\nScore: {score}"
+                await send_telegram_message(user_id, message)
+
+        def calculate_tournament_leaderboard():
+            """Compute tournament rankings based on profit %."""
+            users = db.collection("users").stream()
+            leaderboard = []
+            for doc in users:
+                data = doc.to_dict()
+                profit = data.get("tournament_profit", 0)
+                leaderboard.append((doc.id, profit))
+            leaderboard.sort(key=lambda x: x[1], reverse=True)
+            return leaderboard[:100]
+
+        def distribute_tournament_rewards():
+            """Distribute rewards based on tournament leaderboard."""
+            leaderboard = calculate_tournament_leaderboard()
+            total_pool = get_tournament_pool_balance()
+            reward_structure = [0.25, 0.15, 0.10] + [0.005]*97
+
+            for idx, (user_id, profit) in enumerate(leaderboard):
+                if idx < len(reward_structure):
+                    share = total_pool * reward_structure[idx]
+                    db.collection("users").document(user_id).set(
+                        {"wallet": firestore.Increment(share)}, merge=True)
+                    asyncio.run(send_telegram_message(
+                        user_id, f"Congrats! You won {share:.2f} in the tournament."))
+
+        def get_tournament_pool_balance():
+            """Placeholder to fetch current tournament pool total."""
+            return 500  # Replace with actual balance logic
+
+        def reset_tournament_profits():
+            """Clear each user's tournament profits after reward."""
+            users = db.collection("users").stream()
+            for doc in users:
+                db.collection("users").document(doc.id).update({
+                    "tournament_profit": 0
+                })
+
+        def calculate_app_fee(profit_amount):
+            """Calculate 0.50% app fee on total profit."""
+            return round(profit_amount * 0.005, 2)
+
+        def calculate_tournament_cut(profit_amount):
+            """Calculate 1.25% total tournament deduction from profits."""
+            return round(profit_amount * 0.0125, 2)
+
+        def split_tournament_cut(total_cut):
+            """Split 1% cut: 70% to tournaments, 30% to trophy pool."""
+            tournament_pool = total_cut * 0.70
+            trophy_pool = total_cut * 0.30
+            return tournament_pool, trophy_pool
+
+        def handle_trade_profit_split(user_id, profit_amount):
+            """Deduct app fee and split tournament cut on profit."""
+            app_fee = calculate_app_fee(profit_amount)
+            tournament_cut = calculate_tournament_cut(profit_amount)
+            tournament_pool, trophy_pool = split_tournament_cut(tournament_cut)
+
+            net_profit = profit_amount - (app_fee + tournament_cut)
+
+            user_ref = db.collection("users").document(user_id)
+            user_ref.set({
+                "wallet": firestore.Increment(net_profit),
+                "tournament_contribution": firestore.Increment(tournament_pool),
+                "trophy_contribution": firestore.Increment(trophy_pool),
+            }, merge=True)
+
+            return {
+                "net_profit": net_profit,
+                "app_fee": app_fee,
+                "tournament_cut": tournament_cut,
+                "tournament_pool": tournament_pool,
+                "trophy_pool": trophy_pool
+            }
+
+        async def send_profit_summary(user_id, profit_summary):
+            """Send a summary of fee breakdown and net gain."""
+            msg = (
+                f"Trade Result:\n"
+                f"Net Profit: {profit_summary['net_profit']:.2f}\n"
+                f"App Fee (0.5%): {profit_summary['app_fee']:.2f}\n"
+                f"Tournament Contribution: {profit_summary['tournament_cut']:.2f}\n"
+                f"  • 70% Daily/Weekly Pool: {profit_summary['tournament_pool']:.2f}\n"
+                f"  • 30% Trophy Reset Pool: {profit_summary['trophy_pool']:.2f}"
+            )
+            await send_telegram_message(user_id, msg)
+
+async def update_trade_result(user_id, profit_amount):
+            """Full pipeline: update user profit, fees, pools, and notify."""
+            summary = handle_trade_profit_split(user_id, profit_amount)
+            await send_profit_summary(user_id, summary)
+
+        def get_user_balance(user_id):
+            """Get user wallet balance from Firestore."""
+            doc = db.collection("users").document(user_id).get()
+            if doc.exists:
+                return doc.to_dict().get("wallet", 0)
+            return 0
+
+        def get_user_trophies(user_id):
+            """Get user's trophy count."""
+            doc = db.collection("users").document(user_id).get()
+            if doc.exists:
+                return doc.to_dict().get("trophies", 0)
+            return 0
+
+        def increment_user_trophies(user_id, count=1):
+            """Increment user's trophies by count."""
+            db.collection("users").document(user_id).set(
+                {"trophies": firestore.Increment(count)}, merge=True)
+
+        def reset_season_rewards():
+            """Distribute 6-month trophy reset rewards."""
+            leaderboard = fetch_hall_of_fame()
+            pool_amount = get_trophy_pool_balance()
+            rewards = calculate_reset_reward_distribution(pool_amount)
+
+            for i, player in enumerate(leaderboard):
+                user_id = player["user_id"]
+                reward = rewards[i] if i < len(rewards) else 0
+                db.collection("users").document(user_id).set(
+                    {"wallet": firestore.Increment(reward)}, merge=True)
+                asyncio.run(send_telegram_message(
+                    user_id, f"Season Reset Reward: You earned {reward:.2f} for your trophy rank!"))
+
+        def calculate_reset_reward_distribution(pool_total):
+            """Tiered distribution for top 100 players."""
+            weights = [0.20, 0.15, 0.10] + [0.005]*97
+            total_weight = sum(weights)
+            return [round(pool_total * (w / total_weight), 2) for w in weights]
+
+        def get_trophy_pool_balance():
+            """Placeholder logic for trophy pool total."""
+            return 300  # Replace with actual balance logic later
+
+        def add_to_trophy_pool(amount):
+            """Store trophy pool contributions (mock)."""
+            pass  # Replace with DB update if tracking trophy pool per transaction
+
+        @app.route("/simulate_profit", methods=["POST"])
+        async def simulate_profit():
+            """Simulate a trade profit for testing."""
+            data = request.get_json()
+            user_id = data["user_id"]
+            profit = float(data["profit"])
+            await update_trade_result(user_id, profit)
+            return jsonify({"status": "done"})
+
+        @app.route("/user_balance/<user_id>")
+        def user_balance(user_id):
+            """Return wallet balance."""
+            balance = get_user_balance(user_id)
+            return jsonify({"wallet": balance})
+
+        @app.route("/user_trophies/<user_id>")
+        def user_trophies(user_id):
+            """Return user trophy count."""
+            trophies = get_user_trophies(user_id)
+            return jsonify({"trophies": trophies})
+
+        @app.route("/leaderboard")
+        def get_leaderboard():
+            """Return top 10 profit leaders."""
+            users = db.collection("users").order_by(
+                "wallet", direction=firestore.Query.DESCENDING).limit(10).stream()
+            leaderboard = []
+            for doc in users:
+                data = doc.to_dict()
+                leaderboard.append({
+                    "username": data.get("username", "N/A"),
+                    "wallet": round(data.get("wallet", 0), 2)
+                })
+            return jsonify(leaderboard)
+
+        async def start_trophy_season_reset():
+            """Reset logic for 6-month trophy season."""
+            reset_season_rewards()
+            users = db.collection("users").stream()
+            for doc in users:
+                db.collection("users").document(doc.id).update({
+                    "trophies": 0,
+                    "trophy_contribution": 0
+                })
+
+        def get_user_summary(user_id):
+            """Get user's key stats."""
+            doc = db.collection("users").document(user_id).get()
+            if doc.exists:
+                data = doc.to_dict()
+                return {
+                    "wallet": round(data.get("wallet", 0), 2),
+                    "trophies": data.get("trophies", 0),
+                    "tournament_contribution": round(data.get("tournament_contribution", 0), 2),
+                    "trophy_contribution": round(data.get("trophy_contribution", 0), 2)
+                }
+            return {}
+
+        @app.route("/user_summary/<user_id>")
+        def user_summary(user_id):
+            """Return user's full app stats."""
+            return jsonify(get_user_summary(user_id))
+
+async def send_user_summary(user_id):
+            """Send user's full summary over Telegram."""
+            summary = get_user_summary(user_id)
+            if summary:
+                message = (
+                    f"**Your Account Summary**\n"
+                    f"Wallet: ${summary['wallet']}\n"
+                    f"Trophies: {summary['trophies']}\n"
+                    f"Tournament Contribution: ${summary['tournament_contribution']}\n"
+                    f"Trophy Pool Contribution: ${summary['trophy_contribution']}"
+                )
+                await send_telegram_message(user_id, message)
+            else:
+                await send_telegram_message(user_id, "No user data found.")
+
+        async def send_trade_signal(user_id, coin, signal, price):
+            """Send a trade signal to user."""
+            message = f"Signal for {coin}: {signal.upper()} at ${price}"
+            await send_telegram_message(user_id, message)
+
+        def analyze_user_behavior(user_id):
+            """Mock behavior analysis for Edge AI."""
+            data = db.collection("users").document(user_id).get().to_dict()
+            trade_count = data.get("trade_count", 0)
+            losses = data.get("losses", 0)
+            if losses / max(trade_count, 1) > 0.5:
+                return "caution"
+            return "normal"
+
+        async def edge_ai_check(user_id, trade_data):
+            """Run smart assistant checks before executing trade."""
+            behavior = analyze_user_behavior(user_id)
+            if behavior == "caution":
+                await send_telegram_message(
+                    user_id,
+                    f"High loss rate detected. Are you sure you want to proceed with this trade?\n{trade_data}"
+                )
+            else:
+                await send_telegram_message(
+                    user_id,
+                    f"Trade check passed.\n{trade_data}"
+                )
+
+        def log_trade(user_id, trade_data):
+            """Log trade attempt in user history."""
+            db.collection("users").document(user_id).collection("trades").add({
+                "timestamp": datetime.utcnow().isoformat(),
+                "details": trade_data
+            })
+
+        async def simulate_edge_ai_trade(user_id, coin, direction, price):
+            """Full mock flow using Edge AI support."""
+            trade_data = {
+                "coin": coin,
+                "direction": direction,
+                "price": price
+            }
+            await edge_ai_check(user_id, trade_data)
+            log_trade(user_id, trade_data)
+
+        @app.route("/simulate_edge_trade", methods=["POST"])
+        async def simulate_edge_trade():
+            data = request.get_json()
+            user_id = data["user_id"]
+            coin = data["coin"]
+            direction = data["direction"]
+            price = data["price"]
+            await simulate_edge_ai_trade(user_id, coin, direction, price)
+            return jsonify({"status": "Edge AI trade simulated"})
+
+        def register_trade_result(user_id, result):
+            """Store trade win/loss."""
+            db.collection("users").document(user_id).update({
+                "trade_count": firestore.Increment(1),
+                "losses": firestore.Increment(1 if result == "loss" else 0)
+            })
+
+        @app.route("/record_result", methods=["POST"])
+        def record_result():
+            """Record manual trade result."""
+            data = request.get_json()
+            user_id = data["user_id"]
+            result = data["result"]
+            register_trade_result(user_id, result)
+            return jsonify({"status": "Result recorded"})
+
+        def get_recent_trades(user_id):
+            """Fetch user's last 5 trades."""
+            trades = db.collection("users").document(user_id).collection(
+                "trades").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
+            return [{
+                "time": doc.to_dict().get("timestamp", ""),
+                "details": doc.to_dict().get("details", {})
+            } for doc in trades]
+
+        @app.route("/recent_trades/<user_id>")
+        def recent_trades(user_id):
+            """Return recent trades."""
+            return jsonify(get_recent_trades(user_id))
+
+def calculate_win_ratio(user_id):
+            """Calculate user's win ratio from stored stats."""
+            user_data = db.collection("users").document(user_id).get().to_dict()
+            total_trades = user_data.get("trade_count", 0)
+            total_losses = user_data.get("losses", 0)
+            if total_trades == 0:
+                return 0.0
+            wins = total_trades - total_losses
+            return round(wins / total_trades, 2)
+
+        @app.route("/win_ratio/<user_id>")
+        def win_ratio(user_id):
+            """Return user's win ratio."""
+            ratio = calculate_win_ratio(user_id)
+            return jsonify({"win_ratio": ratio})
+
+        def assign_trophies(user_id, ratio):
+            """Assign trophies based on win ratio."""
+            if ratio >= 0.9:
+                earned = 5
+            elif ratio >= 0.75:
+                earned = 3
+            elif ratio >= 0.5:
+                earned = 1
+            else:
+                earned = 0
+            db.collection("users").document(user_id).update({
+                "trophies": firestore.Increment(earned)
+            })
+            return earned
+
+        @app.route("/assign_trophies/<user_id>")
+        def assign_trophy(user_id):
+            """API to assign trophies after evaluating win ratio."""
+            ratio = calculate_win_ratio(user_id)
+            earned = assign_trophies(user_id, ratio)
+            return jsonify({"status": "trophies_updated", "earned": earned})
+
+        def get_top_trophy_holders(limit=100):
+            """Return top 100 users by trophy count."""
+            users = db.collection("users").order_by(
+                "trophies", direction=firestore.Query.DESCENDING).limit(limit).stream()
+            return [{"user_id": u.id, **u.to_dict()} for u in users]
+
+        @app.route("/leaderboard")
+        def leaderboard():
+            """Return top players by trophies."""
+            top_users = get_top_trophy_holders()
+            return jsonify(top_users)
+
+        def distribute_season_rewards():
+            """Mock distribution for season reset."""
+            top_100 = get_top_trophy_holders()
+            total_pool = get_current_trophy_pool()
+            rewards = []
+            for i, user in enumerate(top_100):
+                user_reward = round((1.0 / (i + 1)) * total_pool / 5, 2)  # descending weight
+                db.collection("users").document(user["user_id"]).update({
+                    "wallet": firestore.Increment(user_reward)
+                })
+                rewards.append({"user": user["user_id"], "reward": user_reward})
+            return rewards
+
+        @app.route("/distribute_season_rewards", methods=["POST"])
+        def api_distribute_season_rewards():
+            rewards = distribute_season_rewards()
+            return jsonify(rewards)
+
+        def reset_trophies_all():
+            """Reset trophies for all users at season end."""
+            users = db.collection("users").stream()
+            for user in users:
+                db.collection("users").document(user.id).update({"trophies": 0})
+            return "Trophies reset"
+
+        @app.route("/reset_trophies", methods=["POST"])
+        def api_reset_trophies():
+            return jsonify({"status": reset_trophies_all()})
+
+        def get_user_wallet(user_id):
+            """Get wallet balance."""
+            user = db.collection("users").document(user_id).get().to_dict()
+            return user.get("wallet", 0.0)
+
+        @app.route("/wallet/<user_id>")
+        def wallet_balance(user_id):
+            balance = get_user_wallet(user_id)
+            return jsonify({"wallet": balance})
+
+        def add_to_wallet(user_id, amount):
+            db.collection("users").document(user_id).update({
+                "wallet": firestore.Increment(amount)
+            })
+
+@app.route("/add_wallet/<user_id>", methods=["POST"])
+        def api_add_wallet(user_id):
+            data = request.get_json()
+            amount = float(data.get("amount", 0.0))
+            add_to_wallet(user_id, amount)
+            return jsonify({"status": "wallet_updated", "amount_added": amount})
+
+        def deduct_from_wallet(user_id, amount):
+            db.collection("users").document(user_id).update({
+                "wallet": firestore.Increment(-amount)
+            })
+
+        @app.route("/deduct_wallet/<user_id>", methods=["POST"])
+        def api_deduct_wallet(user_id):
+            data = request.get_json()
+            amount = float(data.get("amount", 0.0))
+            deduct_from_wallet(user_id, amount)
+            return jsonify({"status": "wallet_deducted", "amount": amount})
+
+        def create_user_if_not_exists(user_id, username=None):
+            user_ref = db.collection("users").document(user_id)
+            if not user_ref.get().exists:
+                user_ref.set({
+                    "telegram_id": user_id,
+                    "username": username,
+                    "wallet": 0.0,
+                    "trophies": 0,
+                    "trade_count": 0,
+                    "losses": 0,
+                    "tournament_opt_in": False,
+                    "binance_api": {},
+                    "luno_api": {}
+                })
+
+        @app.route("/create_user/<user_id>", methods=["POST"])
+        def api_create_user(user_id):
+            data = request.get_json()
+            username = data.get("username", None)
+            create_user_if_not_exists(user_id, username)
+            return jsonify({"status": "user_created"})
+
+        def get_user_data(user_id):
+            doc = db.collection("users").document(user_id).get()
+            return doc.to_dict() if doc.exists else None
+
+        @app.route("/user_data/<user_id>")
+        def api_user_data(user_id):
+            data = get_user_data(user_id)
+            return jsonify(data if data else {"error": "User not found"})
+
+        def update_api_keys(user_id, binance=None, luno=None):
+            updates = {}
+            if binance:
+                updates["binance_api"] = binance
+            if luno:
+                updates["luno_api"] = luno
+            if updates:
+                db.collection("users").document(user_id).update(updates)
+
+        @app.route("/update_keys/<user_id>", methods=["POST"])
+        def api_update_keys(user_id):
+            data = request.get_json()
+            binance = data.get("binance_api")
+            luno = data.get("luno_api")
+            update_api_keys(user_id, binance, luno)
+            return jsonify({"status": "keys_updated"})
+
+        def opt_into_tournament(user_id):
+            db.collection("users").document(user_id).update({
+                "tournament_opt_in": True
+            })
+
+        @app.route("/opt_in_tournament/<user_id>", methods=["POST"])
+        def api_opt_in(user_id):
+            opt_into_tournament(user_id)
+            return jsonify({"status": "opted_in"})
+
+def calculate_tournament_fee(profit):
+            return profit * 0.0125  # 1.25%
+
+        def distribute_fees(profit):
+            total_fee = calculate_tournament_fee(profit)
+            app_fee = profit * 0.005
+            tournament_pool = profit * 0.007
+            return {
+                "total_fee": total_fee,
+                "app_fee": app_fee,
+                "tournament_pool": tournament_pool
+            }
+
+        def split_tournament_pool(pool_amount):
+            daily_weekly = pool_amount * 0.7
+            trophy_reset = pool_amount * 0.3
+            return {
+                "daily_weekly": daily_weekly,
+                "trophy_reset": trophy_reset
+            }
+
+        def reward_trophy_winners():
+            users = db.collection("users").get()
+            all_users = [(u.id, u.to_dict().get("trophies", 0)) for u in users]
+            sorted_users = sorted(all_users, key=lambda x: x[1], reverse=True)
+            top_100 = sorted_users[:100]
+            rewards = [0.04, 0.03, 0.025] + [0.02]*7 + [0.01]*20 + [0.005]*70
+            payouts = []
+            for i, (user_id, _) in enumerate(top_100):
+                reward = rewards[i] if i < len(rewards) else 0.001
+                payouts.append((user_id, reward))
+            return payouts
+
+        def send_trophy_rewards():
+            payouts = reward_trophy_winners()
+            for user_id, percentage in payouts:
+                wallet = db.collection("users").document(user_id).get().to_dict().get("wallet", 0.0)
+                reward_amount = percentage * trophy_reset_pool
+                db.collection("users").document(user_id).update({
+                    "wallet": wallet + reward_amount
+                })
+
+        def reset_trophies():
+            users = db.collection("users").get()
+            for user in users:
+                db.collection("users").document(user.id).update({"trophies": 0})
+
+        def send_tournament_update(text):
+            for chat_id in telegram_chat_ids:
+                application.bot.send_message(chat_id=chat_id, text=text)
+
+        @app.route("/trigger_trophy_reset", methods=["POST"])
+        def api_trigger_trophy_reset():
+            send_trophy_rewards()
+            reset_trophies()
+            send_tournament_update("Trophy season has reset and top 100 rewards were sent!")
+            return jsonify({"status": "reset_complete"})
+
+def track_trade(user_id, result, amount):
+            user_ref = db.collection("users").document(user_id)
+            user_data = user_ref.get().to_dict()
+            new_trade_count = user_data.get("trade_count", 0) + 1
+            update = {"trade_count": new_trade_count}
+
+            if result == "loss":
+                update["losses"] = user_data.get("losses", 0) + 1
+            elif result == "profit":
+                fee_summary = distribute_fees(amount)
+                app_fee = fee_summary["app_fee"]
+                tournament_pool = fee_summary["tournament_pool"]
+                split_pool = split_tournament_pool(tournament_pool)
+                add_to_wallet(user_id, amount - fee_summary["total_fee"])
+                db.collection("app_meta").document("fees").update({
+                    "app_total": firestore.Increment(app_fee),
+                    "tournament_pool": firestore.Increment(split_pool["daily_weekly"]),
+                    "trophy_reset_pool": firestore.Increment(split_pool["trophy_reset"])
+                })
+                update["trophies"] = user_data.get("trophies", 0) + 1
+
+            user_ref.update(update)
+
+        @app.route("/submit_trade/<user_id>", methods=["POST"])
+        def api_submit_trade(user_id):
+            data = request.get_json()
+            result = data.get("result")
+            amount = float(data.get("amount", 0.0))
+            track_trade(user_id, result, amount)
+            return jsonify({"status": "trade_logged"})
+
+        def get_rankings():
+            users = db.collection("users").get()
+            rankings = []
+            for u in users:
+                data = u.to_dict()
+                rankings.append({
+                    "user_id": u.id,
+                    "trophies": data.get("trophies", 0),
+                    "username": data.get("username", "N/A"),
+                    "wallet": data.get("wallet", 0.0)
+                })
+            sorted_ranks = sorted(rankings, key=lambda x: x["trophies"], reverse=True)
+            return sorted_ranks
+
+        @app.route("/rankings")
+        def api_rankings():
+            ranks = get_rankings()
+            return jsonify(ranks)
+
+def format_rankings(rankings, top_n=10):
+            lines = ["Top {} Players:".format(top_n)]
+            for i, r in enumerate(rankings[:top_n]):
+                lines.append(f"{i+1}. {r['username']} - {r['trophies']} trophies - R{r['wallet']:.2f}")
+            return "\n".join(lines)
+
+        def broadcast_rankings():
+            top_ranks = get_rankings()
+            text = format_rankings(top_ranks, top_n=10)
+            for chat_id in telegram_chat_ids:
+                application.bot.send_message(chat_id=chat_id, text=text)
+
+        @app.route("/broadcast_ranks")
+        def api_broadcast_ranks():
+            broadcast_rankings()
+            return jsonify({"status": "broadcasted"})
+
+        def daily_tournament_distribute():
+            pool_ref = db.collection("app_meta").document("fees")
+            pool_data = pool_ref.get().to_dict()
+            daily_pool = pool_data.get("tournament_pool", 0.0)
+
+            if daily_pool < 10:
+                return "Pool too small to distribute."
+
+            rankings = get_rankings()
+            top_100 = rankings[:100]
+            rewards = [0.04, 0.03, 0.025] + [0.02]*7 + [0.01]*20 + [0.005]*70
+            for i, r in enumerate(top_100):
+                percent = rewards[i] if i < len(rewards) else 0.001
+                reward_amt = daily_pool * percent
+                db.collection("users").document(r["user_id"]).update({
+                    "wallet": firestore.Increment(reward_amt)
+                })
+
+            pool_ref.update({"tournament_pool": 0.0})
+            broadcast_rankings()
+            return "Daily rewards distributed."
+
+        @app.route("/daily_tournament_payout", methods=["POST"])
+        def api_daily_payout():
+            result = daily_tournament_distribute()
+            return jsonify({"result": result})
+
+def get_user_summary(user_id):
+            user_data = db.collection("users").document(user_id).get().to_dict()
+            return {
+                "username": user_data.get("username", "N/A"),
+                "wallet": user_data.get("wallet", 0.0),
+                "trophies": user_data.get("trophies", 0),
+                "trades": user_data.get("trade_count", 0),
+                "losses": user_data.get("losses", 0)
+            }
+
+        @app.route("/user_summary/<user_id>")
+        def api_user_summary(user_id):
+            data = get_user_summary(user_id)
+            return jsonify(data)
+
+        def send_personal_summary(chat_id, user_id):
+            summary = get_user_summary(user_id)
+            message = (
+                f"**Your Summary**\n"
+                f"Username: {summary['username']}\n"
+                f"Trophies: {summary['trophies']}\n"
+                f"Wallet: R{summary['wallet']:.2f}\n"
+                f"Trades: {summary['trades']} | Losses: {summary['losses']}"
+            )
+            application.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
+
+        @app.route("/send_my_summary", methods=["POST"])
+        def api_send_my_summary():
+            data = request.get_json()
+            telegram_id = str(data.get("telegram_id"))
+            user_id = telegram_to_user.get(telegram_id)
+            if not user_id:
+                return jsonify({"error": "Not linked"})
+            send_personal_summary(telegram_id, user_id)
+            return jsonify({"status": "sent"})
+
+def reset_trophy_cycle():
+            rankings = get_rankings()
+            top_100 = rankings[:100]
+            reset_pool_ref = db.collection("app_meta").document("fees")
+            reset_data = reset_pool_ref.get().to_dict()
+            reset_pool = reset_data.get("reset_pool", 0.0)
+
+            if reset_pool < 50:
+                return "Not enough in reset pool."
+
+            reward_distribution = [0.08, 0.07, 0.06] + [0.05]*7 + [0.025]*20 + [0.01]*70
+            for i, player in enumerate(top_100):
+                if i >= len(reward_distribution):
+                    break
+                reward = reset_pool * reward_distribution[i]
+                db.collection("users").document(player["user_id"]).update({
+                    "wallet": firestore.Increment(reward)
+                })
+
+            reset_pool_ref.update({"reset_pool": 0.0})
+
+            for player in rankings:
+                db.collection("users").document(player["user_id"]).update({"trophies": 0})
+
+            return "Reset rewards given and trophies cleared."
+
+        @app.route("/season_reset", methods=["POST"])
+        def api_reset_season():
+            result = reset_trophy_cycle()
+            return jsonify({"result": result})
+
+
+
