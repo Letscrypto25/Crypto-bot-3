@@ -2590,5 +2590,307 @@ def get_user_tone(user_id):
         return doc.to_dict().get("tone", "analyst")
     return "analyst"
 
-        return doc.to_dict().get("tone", "analyst")
-    return "analyst"
+# Generate personalized coaching message based on selected tone
+def generate_coaching_message(tone, context_data):
+    if tone == "hustler":
+        return f"Let’s go! You crushed it with a profit of ${context_data['profit']:.2f}. Keep the pressure on."
+    elif tone == "monk":
+        return f"Calm progress. A profit of ${context_data['profit']:.2f} today. Keep practicing discipline."
+    elif tone == "analyst":
+        return f"Profit logged: ${context_data['profit']:.2f}. Stats are improving. Analyzing next moves..."
+    else:
+        return f"Profit of ${context_data['profit']:.2f} noted."
+
+# Example coaching usage after trade log
+def notify_user_with_coaching(user_id, profit):
+    tone = get_user_tone(user_id)
+    context_data = {"profit": profit}
+    message = generate_coaching_message(tone, context_data)
+    send_telegram_message(user_id, message)
+
+# Telegram message sender
+def send_telegram_message(user_id, message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": user_id,
+        "text": message
+    }
+    requests.post(url, json=payload)
+
+# Placeholder for WhatsApp via Twilio or third-party webhook
+def send_whatsapp_alert(phone_number, message):
+    # Needs Twilio setup with auth token and from number
+    twilio_url = "https://api.twilio.com/..."
+    headers = {
+        "Authorization": f"Basic {TWILIO_AUTH_ENCODED}"
+    }
+    data = {
+        "To": f"whatsapp:{phone_number}",
+        "From": "whatsapp:+YOUR_TWILIO_NUMBER",
+        "Body": message
+    }
+    requests.post(twilio_url, data=data, headers=headers)
+
+# Update user alert preference
+async def set_alert_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    method = " ".join(context.args).strip().lower()
+    valid_methods = ["telegram", "whatsapp"]
+
+    if method not in valid_methods:
+        await update.message.reply_text("Choose either 'telegram' or 'whatsapp'.")
+        return
+
+    user_id = update.effective_user.id
+    db.collection("users").document(str(user_id)).update({
+        "alert_method": method
+    })
+
+    await update.message.reply_text(f"Alert method set to: {method.capitalize()}")
+
+# Send trade alert based on user setting
+def notify_trade_signal(user_id, message):
+    doc = db.collection("users").document(str(user_id)).get()
+    if doc.exists:
+        user = doc.to_dict()
+        method = user.get("alert_method", "telegram")
+        if method == "telegram":
+            send_telegram_message(user_id, message)
+        elif method == "whatsapp" and "phone" in user:
+            send_whatsapp_alert(user["phone"], message)
+
+# Function to detect risky trading patterns
+def detect_risky_trade_behavior(user_id, recent_trade):
+    history = get_user_trade_history(user_id)
+    losses = [t for t in history[-3:] if t["profit"] < 0]
+
+    if len(losses) >= 3:
+        return "Warning: You've taken 3 losses in a row. Consider pausing or adjusting your strategy."
+
+    if recent_trade["amount"] > 3 * avg_trade_amount(history):
+        return "Caution: This trade is much larger than your average size. Confirm you want to proceed."
+
+    return None
+
+def avg_trade_amount(history):
+    if not history:
+        return 1
+    return sum(t["amount"] for t in history) / len(history)
+
+# Called when user sends /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_ref = db.collection("users").document(str(user.id))
+
+    if not user_ref.get().exists:
+        user_ref.set({
+            "telegram_id": user.id,
+            "username": user.username or "",
+            "api_keys": {},
+            "tone": "analyst",
+            "alert_method": "telegram",
+            "created_at": datetime.utcnow().isoformat()
+        })
+        await update.message.reply_text(
+            f"Welcome, {user.first_name}! Your profile has been created. Send /help to begin."
+        )
+    else:
+        await update.message.reply_text("Welcome back! Type /menu to explore options.")
+
+async def view_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    doc = db.collection("users").document(str(user_id)).get()
+
+    if not doc.exists:
+        await update.message.reply_text("User not found. Try /start.")
+        return
+
+    user = doc.to_dict()
+    settings_text = (
+        f"**Your Settings:**\n"
+        f"- Coaching Tone: {user.get('tone', 'Not set')}\n"
+        f"- Alert Method: {user.get('alert_method', 'telegram')}\n"
+        f"- Registered Username: @{user.get('username', 'N/A')}\n"
+    )
+    await update.message.reply_text(settings_text, parse_mode="Markdown")
+
+async def update_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    new_username = " ".join(context.args).strip()
+    if not new_username:
+        await update.message.reply_text("Send /setusername <your_username>")
+        return
+
+    user_id = update.effective_user.id
+    db.collection("users").document(str(user_id)).update({
+        "username": new_username
+    })
+
+    await update.message.reply_text(f"Username updated to @{new_username}")
+
+# Register all handlers in app.py or main.py
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("help", help_command))
+app.add_handler(CommandHandler("settone", set_coaching_tone))
+app.add_handler(CommandHandler("setalert", set_alert_method))
+app.add_handler(CommandHandler("settings", view_settings))
+app.add_handler(CommandHandler("setusername", update_username))
+app.add_handler(CommandHandler("linkbinance", link_binance_api))
+app.add_handler(CommandHandler("linkluno", link_luno_api))
+app.add_handler(CommandHandler("logtrade", log_trade_command))
+app.add_handler(CommandHandler("tradehistory", show_trade_history))
+
+async def show_trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    trades = db.collection("trades").where("user_id", "==", str(user_id)).order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
+
+    history = []
+    for trade in trades:
+        t = trade.to_dict()
+        summary = f"{t['timestamp'][:16]} | {t['symbol']} | PnL: ${t['profit']:.2f}"
+        history.append(summary)
+
+    if not history:
+        await update.message.reply_text("No trades found yet.")
+    else:
+        await update.message.reply_text("\n".join(history))
+
+# Simple mood-based encouragement
+def emotional_nudge(user_id, recent_profit):
+    tone = get_user_tone(user_id)
+    if recent_profit < 0:
+        if tone == "monk":
+            return "Losses are part of the path. Breathe. Stick to your plan."
+        elif tone == "hustler":
+            return "Bounce back mode activated! Regroup and fire again."
+        elif tone == "analyst":
+            return "Negative trade logged. Let's review data and adjust."
+    else:
+        return None
+
+def calculate_all_deductions(profit, tournament_enabled=True):
+    # Your fee: 0.50% on all trades
+    # Tournament total: 1.25% (0.25% to you, 1% to players)
+    total_fee = 0.005  # base fee (0.50%)
+    
+    tournament_fee = 0.0125 if tournament_enabled else 0  # 1.25%
+    total_fee += tournament_fee
+
+    return profit * total_fee
+
+def split_tournament_fees(total_tournament_fee):
+    return {
+        "your_cut_from_tournament": total_tournament_fee * 0.20,       # 0.25% = 20% of 1.25%
+        "player_tournament_pool": total_tournament_fee * 0.80          # 1% = 80% of 1.25%
+    }
+
+def breakdown_player_tournament_pool(player_pool_amount):
+    return {
+        "daily_weekly_pool": player_pool_amount * 0.70,  # 70% of 1%
+        "trophy_reset_pool": player_pool_amount * 0.30   # 30% of 1%
+    }
+
+def log_fee_distribution(user_id, trade_id, profit, total_fee):
+    tournament_split = split_tournament_fees(total_fee * (1.25 / (0.5 + 1.25)))  # Isolate 1.25
+    player_split = breakdown_player_tournament_pool(tournament_split["player_tournament_pool"])
+
+    db.collection("fee_logs").add({
+        "user_id": str(user_id),
+        "trade_id": trade_id,
+        "profit": profit,
+        "total_fee": total_fee,
+        "your_fee_base": profit * 0.005,
+        "your_fee_tournament": tournament_split["your_cut_from_tournament"],
+        "daily_weekly_pool": player_split["daily_weekly_pool"],
+        "trophy_reset_pool": player_split["trophy_reset_pool"],
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+
+async def notify_tournament_entry(user_data, tournament_type):
+    message = (
+        f"You're in!\n"
+        f"Tournament: {tournament_type.upper()}\n"
+        f"Profit fee: 1.25%\n"
+        f"Breakdown:\n"
+        f"• 0.25% to platform\n"
+        f"• 0.70% to daily/weekly prize pool\n"
+        f"• 0.30% to 6-month trophy reset\n"
+        f"Good luck, {user_data.get('username', 'Trader')}!"
+    )
+    await send_telegram_alert(user_data["telegram_id"], message)
+
+async def send_fee_breakdown(user_data):
+    message = (
+        "Just a reminder:\n"
+        "Your tournament profit fee is 1.25%:\n"
+        "• 0.25% to us (platform fee)\n"
+        "• 0.70% to the live daily/weekly prize pool\n"
+        "• 0.30% to the 6-month trophy season reset prize\n"
+        "We only profit if you do!"
+    )
+    await send_telegram_alert(user_data["telegram_id"], message)
+
+def award_trophy(user_data, db):
+    user_id = user_data["telegram_id"]
+    user_doc = db.collection("users").document(user_id)
+
+    user_info = user_doc.get().to_dict()
+    current_trophies = user_info.get("trophies", 0)
+
+    user_doc.update({"trophies": current_trophies + 1})
+
+async def notify_trophy_award(user_data):
+    message = (
+        "Congrats!\n"
+        "You earned a Trophy for profitable tournament trading.\n"
+        "Every trophy boosts your ranking for the 6-month grand prize!"
+    )
+    await send_telegram_alert(user_data["telegram_id"], message)
+
+async def send_trade_signal(user_data, signal):
+    message = (
+        f"Edge AI Signal:\n"
+        f"Trade: {signal['pair']} – {signal['direction'].upper()}\n"
+        f"Confidence: {signal['confidence']}%\n"
+        f"Suggested Entry: {signal['entry_price']}\n"
+        f"Target Profit: {signal['target']} | Stop Loss: {signal['stop_loss']}\n"
+        f"Reply with /accept to confirm trade."
+    )
+    await send_telegram_alert(user_data["telegram_id"], message)
+
+from telegram.ext import CommandHandler
+
+async def accept_trade(update, context):
+    telegram_id = update.effective_user.id
+    # Fetch user data and latest signal from DB or memory
+    signal = get_latest_signal_for_user(telegram_id)
+    if signal:
+        place_trade(telegram_id, signal)
+        await update.message.reply_text("Trade accepted and placed.")
+    else:
+        await update.message.reply_text("No active trade signal.")
+
+async def send_trade_result(user_data, result):
+    message = (
+        f"Trade Closed:\n"
+        f"{result['pair']} – Result: {result['outcome'].upper()}\n"
+        f"Profit/Loss: {result['pnl']:.2f} ZAR\n"
+        f"Running Balance: {result['balance']:.2f} ZAR"
+    )
+    await send_telegram_alert(user_data["telegram_id"], message)
+
+async def edge_ai_emotion_check(user_data, trade_history):
+    risky_pattern = detect_emotional_trading(trade_history)
+    if risky_pattern:
+        message = (
+            "Edge AI Warning:\n"
+            "We detected risky emotional behavior (e.g. revenge trading, overtrading).\n"
+            "Consider taking a break or switching to lower risk mode.\n"
+            "Reply with /cooldown to pause trading for 1 hour."
+        )
+        await send_telegram_alert(user_data["telegram_id"], message)
+
+async def cooldown(update, context):
+    telegram_id = update.effective_user.id
+    activate_cooldown(telegram_id, duration_minutes=60)
+    await update.message.reply_text("Cooldown activated. Trading paused for 1 hour.")
+
