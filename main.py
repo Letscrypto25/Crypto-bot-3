@@ -193,6 +193,31 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, parse_mode='Markdown')
 
+# Setkeys command handler to save API keys
+async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.effective_user.id)
+
+    # Extract exchange, API key, and secret from the command arguments
+    if len(context.args) != 3:
+        await update.message.reply_text("Usage: /setkeys <exchange> <api_key> <api_secret>")
+        return
+
+    exchange = context.args[0].lower()
+    api_key = context.args[1]
+    api_secret = context.args[2]
+
+    if exchange not in ["binance", "luno"]:
+        await update.message.reply_text("Supported exchanges: Binance, Luno.")
+        return
+
+    # Save API keys to Firebase under the user’s Telegram ID
+    db.reference(f"api_keys/{telegram_id}/{exchange}").set({
+        "api_key": api_key,
+        "api_secret": api_secret
+    })
+
+    await update.message.reply_text(f"API keys for {exchange.capitalize()} saved successfully.")
+
 # Main function
 async def main():
     global telegram_app
