@@ -3716,5 +3716,294 @@ def reset_trophy_cycle():
             result = reset_trophy_cycle()
             return jsonify({"result": result})
 
+def calculate_trade_fee(profit):
+            if profit <= 0:
+                return 0.0
+            app_fee = profit * 0.005  # 0.50%
+            tournament_fee = profit * 0.01  # 1.0%
+            reset_cut = tournament_fee * 0.30  # 30% to trophy reset
+            daily_cut = tournament_fee * 0.70  # 70% to daily/weekly
+            return app_fee, daily_cut, reset_cut
+
+        def apply_profit_distribution(user_id, profit):
+            app_fee, daily, reset = calculate_trade_fee(profit)
+            user_ref = db.collection("users").document(user_id)
+            user_ref.update({
+                "wallet": firestore.Increment(profit - app_fee - daily - reset),
+                "profit": firestore.Increment(profit),
+                "trade_count": firestore.Increment(1)
+            })
+
+            meta_ref = db.collection("app_meta").document("fees")
+            meta_ref.update({
+                "app_fee": firestore.Increment(app_fee),
+                "tournament_pool": firestore.Increment(daily),
+                "reset_pool": firestore.Increment(reset)
+            })
+
+        @app.route("/mock_trade", methods=["POST"])
+        def mock_trade():
+            data = request.get_json()
+            user_id = data.get("user_id")
+            profit = float(data.get("profit"))
+            apply_profit_distribution(user_id, profit)
+            return jsonify({"status": "applied", "net_profit": profit})
+
+def tournament_cleanup():
+            # Reset tournament-specific data for the new round
+            today = datetime.datetime.now().date()
+            last_cleanup = db.collection("app_meta").document("tournament")
+            last_cleanup_data = last_cleanup.get().to_dict()
+            last_date = last_cleanup_data.get("last_reset", None)
+
+            if last_date != today:
+                db.collection("app_meta").document("tournament").update({
+                    "last_reset": today,
+                    "daily_winners": [],
+                    "weekly_winners": []
+                })
+
+                # Notify players of the reset
+                notify_players_of_tournament_reset()
+
+        def notify_players_of_tournament_reset():
+            users_ref = db.collection("users").stream()
+            for user in users_ref:
+                try:
+                    telegram_send_message(user.id, "Tournament reset! New day, new chances!")
+                except Exception as e:
+                    print(f"Error sending notification: {e}")
+
+        @app.route("/cleanup_tournament", methods=["POST"])
+        def api_cleanup_tournament():
+            tournament_cleanup()
+            return jsonify({"status": "Tournament reset and players notified."})
+
+def check_for_arbitrage_opportunity():
+            arbitrage_gap = 0.02  # 2% price difference
+            binance_data = get_binance_prices()
+            luno_data = get_luno_prices()
+
+            opportunities = []
+
+            for pair in binance_data:
+                binance_price = binance_data[pair]
+                luno_price = luno_data.get(pair)
+
+                if luno_price:
+                    price_diff = abs(binance_price - luno_price) / binance_price
+                    if price_diff >= arbitrage_gap:
+                        opportunities.append({
+                            "pair": pair,
+                            "binance_price": binance_price,
+                            "luno_price": luno_price,
+                            "price_diff": price_diff
+                        })
+
+            return opportunities
+
+        def execute_arbitrage_trade(pair, binance_price, luno_price):
+            # Perform the trade based on the higher price (buy from lower, sell at higher)
+            if binance_price < luno_price:
+                # Buy on Binance and sell on Luno
+                place_binance_order(pair, "buy", binance_price)
+                place_luno_order(pair, "sell", luno_price)
+            else:
+                # Buy on Luno and sell on Binance
+                place_luno_order(pair, "buy", luno_price)
+                place_binance_order(pair, "sell", binance_price)
+
+        def place_binance_order(pair, side, price):
+            # Example of how orders might be placed using Binance API
+            binance_api.place_order(pair, side, price)
+
+        def place_luno_order(pair, side, price):
+            # Example of how orders might be placed using Luno API
+            luno_api.place_order(pair, side, price)
+
+        @app.route("/arbitrage_check", methods=["POST"])
+        def arbitrage_check():
+            opportunities = check_for_arbitrage_opportunity()
+            if opportunities:
+                for opp in opportunities:
+                    execute_arbitrage_trade(opp["pair"], opp["binance_price"], opp["luno_price"])
+                return jsonify({"status": "Arbitrage trades executed", "opportunities": opportunities})
+            else:
+                return jsonify({"status": "No arbitrage opportunities found"})
+
+def fetch_and_send_trade_signal():
+            # Fetch signal from the trading algorithm or AI model
+            signal = get_trade_signal_from_ai()
+
+            # Notify users about the trade signal
+            users_ref = db.collection("users").stream()
+            for user in users_ref:
+                telegram_send_message(user.id, f"New trade signal: {signal}")
+
+            return "Trade signal sent to all users"
+
+        def get_trade_signal_from_ai():
+            # Placeholder for actual AI-based trade signal generator
+            return "Buy BTC/USDT at 56000, sell at 57000"
+
+        @app.route("/send_trade_signal", methods=["POST"])
+        def send_trade_signal():
+            result = fetch_and_send_trade_signal()
+            return jsonify({"status": result})
+
+def monitor_trade_success():
+            # Check for successful trades and notify user
+            successful_trades = get_successful_trades()
+
+            for trade in successful_trades:
+                user_id = trade["user_id"]
+                profit = trade["profit"]
+
+                # Update wallet balance and notify the user
+                db.collection("users").document(user_id).update({
+                    "wallet": firestore.Increment(profit)
+                })
+                telegram_send_message(user_id, f"Your trade was successful! You earned {profit}.")
+
+            return "Trade success monitored and users notified"
+
+        def get_successful_trades():
+            # Placeholder function to retrieve successful trades
+            return [
+                {"user_id": "123", "profit": 150},
+                {"user_id": "456", "profit": 200}
+            ]
+
+        @app.route("/monitor_success", methods=["POST"])
+        def monitor_success():
+            result = monitor_trade_success()
+            return jsonify({"status": result})
+
+def user_leaderboard():
+            users_ref = db.collection("users").order_by("profit", direction=firestore.Query.DESCENDING).limit(10).stream()
+            leaderboard = [{"username": user.id, "profit": user.to_dict().get("profit")} for user in users_ref]
+            return leaderboard
+
+        @app.route("/leaderboard", methods=["GET"])
+        def api_leaderboard():
+            leaderboard = user_leaderboard()
+            return jsonify({"leaderboard": leaderboard})
+
+def get_player_trophies(user_id):
+            user_ref = db.collection("users").document(user_id)
+            user_data = user_ref.get().to_dict()
+            return user_data.get("trophies", 0)
+
+        @app.route("/player_trophies/<user_id>", methods=["GET"])
+        def api_player_trophies(user_id):
+            trophies = get_player_trophies(user_id)
+            return jsonify({"user_id": user_id, "trophies": trophies})
+
+def set_trophy_for_user(user_id, trophy_count):
+            user_ref = db.collection("users").document(user_id)
+            user_ref.update({"trophies": trophy_count})
+
+        @app.route("/set_trophy/<user_id>", methods=["POST"])
+        def api_set_trophy(user_id):
+            data = request.get_json()
+            trophy_count = data.get("trophy_count")
+            set_trophy_for_user(user_id, trophy_count)
+            return jsonify({"status": f"Trophy count for {user_id} updated to {trophy_count}"})
+
+def adjust_wallet_balance(user_id, amount):
+            user_ref = db.collection("users").document(user_id)
+            user_ref.update({"wallet": firestore.Increment(amount)})
+
+        @app.route("/adjust_wallet/<user_id>", methods=["POST"])
+        def api_adjust_wallet(user_id):
+            data = request.get_json()
+            amount = float(data.get("amount"))
+            adjust_wallet_balance(user_id, amount)
+            return jsonify({"status": f"Wallet balance for {user_id} adjusted by {amount}"})
+
+def track_trade_activity(user_id, action, details):
+            trade_ref = db.collection("trade_activity").document()
+            trade_ref.set({
+                "user_id": user_id,
+                "action": action,
+                "details": details,
+                "timestamp": firestore.SERVER_TIMESTAMP
+            })
+
+        @app.route("/track_trade", methods=["POST"])
+        def api_track_trade():
+            data = request.get_json()
+            user_id = data.get("user_id")
+            action = data.get("action")
+            details = data.get("details")
+            track_trade_activity(user_id, action, details)
+            return jsonify({"status": "Trade activity tracked"})
+
+def monitor_profit_margin():
+            users_ref = db.collection("users").stream()
+            for user in users_ref:
+                user_data = user.to_dict()
+                if user_data.get("profit") < 0:
+                    telegram_send_message(user.id, "Your current balance is negative! Review your trades.")
+
+        @app.route("/monitor_profit", methods=["POST"])
+        def api_monitor_profit():
+            monitor_profit_margin()
+            return jsonify({"status": "Profit margin monitoring complete"})
+
+def get_trade_history(user_id):
+            trades_ref = db.collection("trade_activity").where("user_id", "==", user_id).stream()
+            trade_history = [{"action": trade.to_dict()["action"], "details": trade.to_dict()["details"]} for trade in trades_ref]
+            return trade_history
+
+        @app.route("/trade_history/<user_id>", methods=["GET"])
+        def api_trade_history(user_id):
+            trade_history = get_trade_history(user_id)
+            return jsonify({"user_id": user_id, "trade_history": trade_history})
+
+def fetch_current_wallet_balance(user_id):
+            user_ref = db.collection("users").document(user_id)
+            user_data = user_ref.get().to_dict()
+            return user_data.get("wallet", 0.0)
+
+        @app.route("/wallet_balance/<user_id>", methods=["GET"])
+        def api_wallet_balance(user_id):
+            balance = fetch_current_wallet_balance(user_id)
+            return jsonify({"user_id": user_id, "wallet_balance": balance})
+
+def generate_wallet_report():
+            all_users_ref = db.collection("users").stream()
+            report = []
+            for user in all_users_ref:
+                user_data = user.to_dict()
+                report.append({
+                    "user_id": user.id,
+                    "wallet_balance": user_data.get("wallet"),
+                    "profit": user_data.get("profit")
+                })
+            return report
+
+        @app.route("/wallet_report", methods=["GET"])
+        def api_wallet_report():
+            report = generate_wallet_report()
+            return jsonify({"report": report})
+
+def fetch_app_statistics():
+            total_users = len(db.collection("users").stream())
+            total_profits = sum([user.to_dict().get("profit", 0) for user in db.collection("users").stream()])
+            total_wallets = sum([user.to_dict().get("wallet", 0) for user in db.collection("users").stream()])
+            return {
+                "total_users": total_users,
+                "total_profits": total_profits,
+                "total_wallets": total_wallets
+            }
+
+        @app.route("/app_statistics", methods=["GET"])
+        def api_app_statistics():
+            stats = fetch_app_statistics()
+            return jsonify({"statistics": stats})
+
+
+
 
 
