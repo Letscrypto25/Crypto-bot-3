@@ -42,6 +42,10 @@ fernet = Fernet(SECRET_KEY)
 app = Quart(__name__)
 telegram_app: Application = None
 
+# Tournament logic - for simplicity
+user_approvals = {}
+autobot_tasks = {}
+
 @app.route("/")
 async def health():
     return "OK", 200
@@ -76,13 +80,99 @@ def update_tournament_score(telegram_id, profit_percent, trades_count):
         "last_updated": datetime.now().isoformat()
     })
 
-def save_error_to_firebase(error_message):
-    ref = db.reference("errors")
-    error_ref = ref.push({
-        "error": error_message,
-        "timestamp": datetime.now().isoformat()
+def update_leaderboard():
+    leaderboard_ref = db.reference("leaderboard")
+    leaderboard = leaderboard_ref.get() or {}
+
+    # Update leaderboard with player stats
+    for user_id in leaderboard:
+        user_data = db.reference(f"tournaments/{user_id}").get()
+        if user_data:
+            leaderboard[user_id] = user_data.get("profit_percent", 0)
+    
+    sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+    db.reference("leaderboard").set(sorted_leaderboard)
+
+# Tournament logic
+async def stopbot_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.effective_user.id)
+
+    # Check if bot is running
+    if telegram_id not in autobot_tasks:
+        await update.message.reply_text("No active autobot found.")
+        return
+
+    # Check payment or approval
+    user_data = db.child("users").child(telegram_id).get().val()
+    has_paid = user_data.get("has_paid", False)
+
+    if has_paid:
+        autobot_tasks[telegram_id].cancel()
+        del autobot_tasks[telegram_id]
+        await update.message.reply_text("Autobot stopped. Thank you for supporting the app!")
+        return
+
+    if user_approvals.get(telegram_id) == "approved":
+        # Deduct fees, send profile, and register tournament
+        await finalize_stop(update, telegram_id, user_data)
+        return
+
+    # Ask for approval
+    await update.message.reply_text(
+        "To stop the autobot, approve tournament fee (1.25%) and profit share (0.25–0.5%).\n\n"
+        "Type `approve` to continue."
+    )
+
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.effective_user.id)
+    text = update.message.text.lower()
+
+    if text == "approve" and telegram_id in autobot_tasks:
+        user_approvals[telegram_id] = "approved"
+        user_data = db.child("users").child(telegram_id).get().val()
+        await finalize_stop(update, telegram_id, user_data)
+
+async def finalize_stop(update, telegram_id, user_data):
+    # Cancel autobot
+    autobot_tasks[telegram_id].cancel()
+    del autobot_tasks[telegram_id]
+
+    # Simulate sending profile and deductions
+    username = user_data.get("username", "unknown")
+    profits = user_data.get("profits", 0)
+    tournament_fee = profits * 0.0125
+    app_cut = profits * 0.0025
+
+    # Update leaderboard
+    update_leaderboard()
+
+    await update.message.reply_text(
+        f"Autobot stopped.\n\nProfile: @{username}\nProfits: ${profits:.2f}\n"
+        f"Deducted: ${tournament_fee:.2f} for tournament + ${app_cut:.2f} for app.\n"
+        f"You’re now registered in the tournament. Good luck!"
+    )
+
+    # Save status
+    db.child("users").child(telegram_id).update({
+        "registered_tournament": True,
+        "has_paid": True
     })
-    return error_ref.key
+
+async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    leaderboard_ref = db.reference("leaderboard")
+    leaderboard = leaderboard_ref.get() or []
+
+    if not leaderboard:
+        await update.message.reply_text("No leaderboard available.")
+        return
+
+    leaderboard_message = "Leaderboard:\n"
+    for rank, (user_id, profit_percent) in enumerate(leaderboard[:10], start=1):
+        user_data = db.child("users").child(user_id).get().val()
+        username = user_data.get("username", "unknown")
+        leaderboard_message += f"{rank}. @{username}: {profit_percent:.2f}%\n"
+
+    await update.message.reply_text(leaderboard_message)
 
 # Telegram commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -99,108 +189,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/balance - Check your Binance & Luno balances\n"
         "/trades - Show your saved trades\n"
         "/tournament - Show your tournament stats\n"
+        "/leaderboard - View the tournament leaderboard\n"
     )
     await update.message.reply_text(msg, parse_mode='Markdown')
-
-async def setkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    try:
-        if len(context.args) != 3:
-            raise ValueError("Usage: /setkeys <exchange> <api_key> <api_secret>")
-
-        exchange = context.args[0].lower()
-        if exchange not in ['binance', 'luno']:
-            raise ValueError("Invalid exchange. Use 'binance' or 'luno'.")
-
-        api_key = fernet.encrypt(context.args[1].encode()).decode()
-        api_secret = fernet.encrypt(context.args[2].encode()).decode()
-        ref = db.reference(f'api_keys/{user_id}')
-
-        if exchange == "binance":
-            ref.update({'binance_api_key': api_key, 'binance_api_secret': api_secret})
-        else:
-            ref.update({'luno_api_key': api_key, 'luno_api_secret': api_secret})
-
-        await update.message.reply_text(f"{exchange.title()} keys saved.")
-    except Exception as e:
-        logger.error(f"Setkeys error: {e}")
-        error_url = save_error_to_firebase(str(e))
-        await update.message.reply_text(f"Error: {str(e)}. More details: {error_url}")
-
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    data = db.reference(f'api_keys/{user_id}').get()
-    if data:
-        msg = "\n".join([
-            f"Binance Key: {'Set' if data.get('binance_api_key') else 'Not Set'}",
-            f"Luno Key: {'Set' if data.get('luno_api_key') else 'Not Set'}"
-        ])
-    else:
-        msg = "No API keys saved."
-    await update.message.reply_text(msg)
-
-async def deletekeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    db.reference(f'api_keys/{user_id}').delete()
-    await update.message.reply_text("Keys deleted.")
-
-async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    data = db.reference(f'api_keys/{user_id}').get()
-    if not data:
-        await update.message.reply_text("Set your keys first using /setkeys")
-        return
-    try:
-        msg = ""
-
-        if 'binance_api_key' in data:
-            b_key = fernet.decrypt(data['binance_api_key'].encode()).decode()
-            b_secret = fernet.decrypt(data['binance_api_secret'].encode()).decode()
-            b_client = Client(b_key, b_secret)
-            usdt = b_client.get_asset_balance(asset='USDT')['free']
-            msg += f"Binance USDT: {usdt}\n"
-
-        if 'luno_api_key' in data:
-            l_key = fernet.decrypt(data['luno_api_key'].encode()).decode()
-            l_secret = fernet.decrypt(data['luno_api_secret'].encode()).decode()
-            l_client = LunoClient()
-            l_client.set_auth(l_key, l_secret)
-            balances = l_client.get_balances()['balance']
-            msg += "Luno:\n" + "\n".join(f"{b['asset']}: {b['balance']}" for b in balances)
-
-        await update.message.reply_text(msg or "No balances found.")
-    except Exception as e:
-        logger.error(f"Balance error: {e}")
-        error_url = save_error_to_firebase(str(e))
-        await update.message.reply_text(f"Error checking balance. More details: {error_url}")
-
-async def trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    ref = db.reference(f"trades/{user_id}")
-    data = ref.get()
-    if not data:
-        await update.message.reply_text("No trades saved yet.")
-        return
-
-    lines = []
-    for k, v in list(data.items())[-5:]:
-        lines.append(f"{v.get('symbol', '?')} - {v.get('side', '?')} @ {v.get('price', '?')}")
-    await update.message.reply_text("Your Recent Trades:\n" + "\n".join(lines))
-
-async def tournament(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    ref = db.reference(f"tournaments/{user_id}")
-    data = ref.get()
-    if not data:
-        await update.message.reply_text("No tournament stats yet.")
-        return
-
-    msg = (
-        f"Profit %: {data.get('profit_percent', '0')}\n"
-        f"Trades: {data.get('trades', '0')}\n"
-        f"Last Updated: {data.get('last_updated', '?')}"
-    )
-    await update.message.reply_text("Tournament Stats:\n" + msg)
 
 # Main function
 async def main():
@@ -219,6 +210,7 @@ async def main():
     telegram_app.add_handler(CommandHandler("balance", balance))
     telegram_app.add_handler(CommandHandler("trades", trades))
     telegram_app.add_handler(CommandHandler("tournament", tournament))
+    telegram_app.add_handler(CommandHandler("leaderboard", leaderboard))
 
     await telegram_app.initialize()
     await telegram_app.start()
