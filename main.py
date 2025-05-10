@@ -3005,11 +3005,10 @@ def fetch_hall_of_fame():
             return leaderboard
 
         @app.route("/hall-of-fame")
-        def hall_of_fame_route():
-            """Web route to show Hall of Fame leaderboard."""
-            leaderboard = fetch_hall_of_fame()
-            return jsonify(leaderboard)
-
+def hall_of_fame_route():
+    """Web route to show Hall of Fame leaderboard."""
+    leaderboard = fetch_hall_of_fame()
+    return jsonify(leaderboard)
         async def send_tournament_results():
             """Send final daily/weekly tournament results via Telegram."""
             leaderboard = calculate_tournament_leaderboard()
