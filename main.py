@@ -3509,13 +3509,13 @@ def calculate_tournament_fee(profit):
             return payouts
 
         def send_trophy_rewards():
-            payouts = reward_trophy_winners()
-            for user_id, percentage in payouts:
-                wallet = db.collection("users").document(user_id).get().to_dict().get("wallet", 0.0)
-                reward_amount = percentage * trophy_reset_pool
-                db.collection("users").document(user_id).update({
-                    "wallet": wallet + reward_amount
-                })
+    payouts = reward_trophy_winners()
+    for user_id, percentage in payouts:
+        wallet = db.collection("users").document(user_id).get().to_dict().get("wallet", 0.0)
+        reward_amount = percentage * trophy_reset_pool
+        db.collection("users").document(user_id).update({
+            "wallet": wallet + reward_amount
+        })
 
         def reset_trophies():
             users = db.collection("users").get()
