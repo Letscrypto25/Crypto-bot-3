@@ -2893,33 +2893,27 @@ async def cooldown(update, context):
     activate_cooldown(telegram_id, duration_minutes=60)
     await update.message.reply_text("Cooldown activated. Trading paused for 1 hour.")
 
-async def edge_ai_emotion_check(user_id, trade_context):
-            """Analyze emotional trading patterns and send feedback via Telegram."""
-            user_doc = db.collection("users").document(str(user_id)).get()
-            if not user_doc.exists:
-                return
+async def edge_ai_emotion_analysis(user_id, user_doc):
+        data = user_doc.to_dict()
+        trade_history = data.get("trade_history", [])
+        recent_trades = trade_history[-5:]
 
-            data = user_doc.to_dict()
-            trade_history = data.get("trade_history", [])
-            recent_trades = trade_history[-5:]
+        # Emotion detection logic: overtrading, revenge trading, panic exits
+        overtrading = sum(1 for t in recent_trades if t["interval"] < 300) >= 3
+        revenge_trading = sum(1 for t in recent_trades if t["result"] == "loss") >= 3
+        panic_exit = any(t["profit_pct"] < -5 for t in recent_trades)
 
-            # Emotion detection logic: overtrading, revenge trading, panic exits
-            overtrading = sum(1 for t in recent_trades if t["interval"] < 300) >= 3
-            revenge_trading = sum(1 for t in recent_trades if t["result"] == "loss") >= 3
-            panic_exit = any(t["profit_pct"] < -5 for t in recent_trades)
+        feedback_msgs = []
+        if overtrading:
+            feedback_msgs.append("You're placing trades too quickly. Breathe and trust your setups.")
+        if revenge_trading:
+            feedback_msgs.append("It looks like you're revenge trading. Consider taking a break.")
+        if panic_exit:
+            feedback_msgs.append("You exited a trade too early. Make sure you stick to your plan.")
 
-            feedback_msgs = []
-            if overtrading:
-                feedback_msgs.append("You're placing trades too quickly. Breathe and trust your setups.")
-            if revenge_trading:
-                feedback_msgs.append("It looks like you're revenge trading. Consider taking a break.")
-            if panic_exit:
-                feedback_msgs.append("You exited a trade too early. Make sure you stick to your plan.")
-
-            if feedback_msgs:
-                full_message = "\n".join(feedback_msgs)
-                await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
-
+        if feedback_msgs:
+            full_message = "\n".join(feedback_msgs)
+            await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
         async def edge_ai_confirm_risky_trade(user_id, signal):
             """Prompt user to confirm risky trade patterns before execution."""
             risk_detected = False
