@@ -2992,17 +2992,17 @@ async def edge_ai_emotion_analysis(user_id, user_doc):
             })
 
 def fetch_hall_of_fame():
-            """Retrieve top Hall of Fame entries."""
-            entries = db.collection("hall_of_fame").order_by("trophies", direction=firestore.Query.DESCENDING).limit(100).stream()
-            leaderboard = []
-            for entry in entries:
-                data = entry.to_dict()
-                leaderboard.append({
-                    "user_id": data.get("user_id"),
-                    "trophies": data.get("trophies"),
-                    "timestamp": data.get("timestamp").strftime("%Y-%m-%d")
-                })
-            return leaderboard
+    """Retrieve top Hall of Fame entries."""
+    entries = db.collection("hall_of_fame").order_by("trophies", direction=firestore.Query.DESCENDING).limit(100).stream()
+    leaderboard = []
+    for entry in entries:
+        data = entry.to_dict()
+        leaderboard.append({
+            "user_id": data.get("user_id"),
+            "trophies": data.get("trophies"),
+            "timestamp": data.get("timestamp").strftime("%Y-%m-%d")
+        })
+    return leaderboard
 
         @app.route("/hall-of-fame")
 def hall_of_fame_route():
