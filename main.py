@@ -2872,63 +2872,48 @@ async def send_trade_result(user_data, result):
     )
     await send_telegram_alert(user_data["telegram_id"], message)
 
-async def edge_ai_emotion_check(user_data, trade_history):
-    risky_pattern = detect_emotional_trading(trade_history)
-    if risky_pattern:
-        message = (
-            "Edge AI Warning:\n"
-            "We detected risky emotional behavior (e.g. revenge trading, overtrading).\n"
-            "Consider taking a break or switching to lower risk mode.\n"
-            "Reply with /cooldown to pause trading for 1 hour."
-        )
-        await send_telegram_alert(user_data["telegram_id"], message)
-
-async def cooldown(update, context):
-    telegram_id = update.effective_user.id
-    activate_cooldown(telegram_id, duration_minutes=60)
-    await update.message.reply_text("Cooldown activated. Trading paused for 1 hour.")
-
 async def edge_ai_emotion_check(user_id, trade_context):
-            """Analyze emotional trading patterns and send feedback via Telegram."""
-            user_doc = db.collection("users").document(str(user_id)).get()
-            if not user_doc.exists:
-                return
+    """Analyze emotional trading patterns and send feedback via Telegram."""
+    user_doc = db.collection("users").document(str(user_id)).get()
+    if not user_doc.exists:
+        return
 
-            data = user_doc.to_dict()
-            trade_history = data.get("trade_history", [])
-            recent_trades = trade_history[-5:]
+    data = user_doc.to_dict()
+    trade_history = data.get("trade_history", [])
+    recent_trades = trade_history[-5:]
 
-            # Emotion detection logic: overtrading, revenge trading, panic exits
-            overtrading = sum(1 for t in recent_trades if t["interval"] < 300) >= 3
-            revenge_trading = sum(1 for t in recent_trades if t["result"] == "loss") >= 3
-            panic_exit = any(t["profit_pct"] < -5 for t in recent_trades)
+    # Emotion detection logic: overtrading, revenge trading, panic exits
+    overtrading = sum(1 for t in recent_trades if t["interval"] < 300) >= 3
+    revenge_trading = sum(1 for t in recent_trades if t["result"] == "loss") >= 3
+    panic_exit = any(t["profit_pct"] < -5 for t in recent_trades)
 
-            feedback_msgs = []
-            if overtrading:
-                feedback_msgs.append("You're placing trades too quickly. Breathe and trust your setups.")
-            if revenge_trading:
-                feedback_msgs.append("It looks like you're revenge trading. Consider taking a break.")
-            if panic_exit:
-                feedback_msgs.append("You exited a trade too early. Make sure you stick to your plan.")
+    feedback_msgs = []
+    if overtrading:
+        feedback_msgs.append("You're placing trades too quickly. Breathe and trust your setups.")
+    if revenge_trading:
+        feedback_msgs.append("It looks like you're revenge trading. Consider taking a break.")
+    if panic_exit:
+        feedback_msgs.append("You exited a trade too early. Make sure you stick to your plan.")
 
-            if feedback_msgs:
-                full_message = "\n".join(feedback_msgs)
-                await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
-                async def edge_ai_confirm_risky_trade(user_id, signal):
-            """Prompt user to confirm risky trade patterns before execution."""
-            risk_detected = False
-            if signal["rsi"] > 80 or signal["rsi"] < 20:
-                risk_detected = True
+    if feedback_msgs:
+        full_message = "\n".join(feedback_msgs)
+        await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
 
-            if risk_detected:
-                prompt = (
-                    "Edge AI has detected a high-risk trade setup.\n"
-                    f"Pair: {signal['pair']}\n"
-                    f"RSI: {signal['rsi']}\n"
-                    "Are you sure you want to proceed?"
-                )
-                await send_telegram_message(user_id, prompt + "\nReply with YES to confirm.")
 
+async def edge_ai_confirm_risky_trade(user_id, signal):
+    """Prompt user to confirm risky trade patterns before execution."""
+    risk_detected = False
+    if signal["rsi"] > 80 or signal["rsi"] < 20:
+        risk_detected = True
+
+    if risk_detected:
+        prompt = (
+            "Edge AI has detected a high-risk trade setup.\n"
+            f"Pair: {signal['pair']}\n"
+            f"RSI: {signal['rsi']}\n"
+            "Are you sure you want to proceed?"
+        )
+        await send_telegram_message(user_id, prompt + "\nReply with YES to confirm.")
         async def monitor_confirmations():
             """Listen for confirmation responses on risky trades."""
             # This is handled by a Telegram command handler where users reply with YES
