@@ -2804,7 +2804,6 @@ def log_fee_distribution(user_id, trade_id, profit, total_fee):
         "timestamp": datetime.utcnow().isoformat()
     })
 
-
 async def notify_tournament_entry(user_data, tournament_type):
     message = (
         f"You're in!\n"
@@ -2921,11 +2920,11 @@ async def edge_ai_emotion_check(user_id, trade_context):
                 full_message = "\n".join(feedback_msgs)
                 await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
 
-async def edge_ai_confirm_risky_trade(user_id, signal):
-    """Prompt user to confirm risky trade patterns before execution."""
-    risk_detected = False
-    if signal["rsi"] > 80 or signal["rsi"] < 20:
-        risk_detected = True
+        async def edge_ai_confirm_risky_trade(user_id, signal):
+            """Prompt user to confirm risky trade patterns before execution."""
+            risk_detected = False
+            if signal["rsi"] > 80 or signal["rsi"] < 20:
+                risk_detected = True
 
             if risk_detected:
                 prompt = (
@@ -2998,7 +2997,7 @@ async def edge_ai_confirm_risky_trade(user_id, signal):
                 "timestamp": datetime.utcnow()
             })
 
-         def fetch_hall_of_fame():
+def fetch_hall_of_fame():
             """Retrieve top Hall of Fame entries."""
             entries = db.collection("hall_of_fame").order_by("trophies", direction=firestore.Query.DESCENDING).limit(100).stream()
             leaderboard = []
@@ -4002,8 +4001,4 @@ def fetch_app_statistics():
         def api_app_statistics():
             stats = fetch_app_statistics()
             return jsonify({"statistics": stats})
-
-
-
-
 
