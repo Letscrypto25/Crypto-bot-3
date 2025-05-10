@@ -3509,13 +3509,13 @@ def calculate_tournament_fee(profit):
             return payouts
 
         def send_trophy_rewards():
-    payouts = reward_trophy_winners()
-    for user_id, percentage in payouts:
-        wallet = db.collection("users").document(user_id).get().to_dict().get("wallet", 0.0)
-        reward_amount = percentage * trophy_reset_pool
-        db.collection("users").document(user_id).update({
-            "wallet": wallet + reward_amount
-        })
+            payouts = reward_trophy_winners()
+            for user_id, percentage in payouts:
+                wallet = db.collection("users").document(user_id).get().to_dict().get("wallet", 0.0)
+                reward_amount = percentage * trophy_reset_pool
+                db.collection("users").document(user_id).update({
+                "wallet": wallet + reward_amount
+                })
 
         def reset_trophies():
             users = db.collection("users").get()
@@ -3533,7 +3533,7 @@ def calculate_tournament_fee(profit):
             send_tournament_update("Trophy season has reset and top 100 rewards were sent!")
             return jsonify({"status": "reset_complete"})
 
-def track_trade(user_id, result, amount):
+        def track_trade(user_id, result, amount):
             user_ref = db.collection("users").document(user_id)
             user_data = user_ref.get().to_dict()
             new_trade_count = user_data.get("trade_count", 0) + 1
@@ -3583,7 +3583,7 @@ def track_trade(user_id, result, amount):
             ranks = get_rankings()
             return jsonify(ranks)
 
-def format_rankings(rankings, top_n=10):
+        def format_rankings(rankings, top_n=10):
             lines = ["Top {} Players:".format(top_n)]
             for i, r in enumerate(rankings[:top_n]):
                 lines.append(f"{i+1}. {r['username']} - {r['trophies']} trophies - R{r['wallet']:.2f}")
@@ -3627,7 +3627,7 @@ def format_rankings(rankings, top_n=10):
             result = daily_tournament_distribute()
             return jsonify({"result": result})
 
-def get_user_summary(user_id):
+        def get_user_summary(user_id):
             user_data = db.collection("users").document(user_id).get().to_dict()
             return {
                 "username": user_data.get("username", "N/A"),
@@ -3663,7 +3663,7 @@ def get_user_summary(user_id):
             send_personal_summary(telegram_id, user_id)
             return jsonify({"status": "sent"})
 
-def reset_trophy_cycle():
+        def reset_trophy_cycle():
             rankings = get_rankings()
             top_100 = rankings[:100]
             reset_pool_ref = db.collection("app_meta").document("fees")
@@ -3694,7 +3694,7 @@ def reset_trophy_cycle():
             result = reset_trophy_cycle()
             return jsonify({"result": result})
 
-def calculate_trade_fee(profit):
+        def calculate_trade_fee(profit):
             if profit <= 0:
                 return 0.0
             app_fee = profit * 0.005  # 0.50%
@@ -3727,7 +3727,7 @@ def calculate_trade_fee(profit):
             apply_profit_distribution(user_id, profit)
             return jsonify({"status": "applied", "net_profit": profit})
 
-def tournament_cleanup():
+        def tournament_cleanup():
             # Reset tournament-specific data for the new round
             today = datetime.datetime.now().date()
             last_cleanup = db.collection("app_meta").document("tournament")
@@ -3757,7 +3757,7 @@ def tournament_cleanup():
             tournament_cleanup()
             return jsonify({"status": "Tournament reset and players notified."})
 
-def check_for_arbitrage_opportunity():
+        def check_for_arbitrage_opportunity():
             arbitrage_gap = 0.02  # 2% price difference
             binance_data = get_binance_prices()
             luno_data = get_luno_prices()
@@ -3809,7 +3809,7 @@ def check_for_arbitrage_opportunity():
             else:
                 return jsonify({"status": "No arbitrage opportunities found"})
 
-def fetch_and_send_trade_signal():
+        def fetch_and_send_trade_signal():
             # Fetch signal from the trading algorithm or AI model
             signal = get_trade_signal_from_ai()
 
@@ -3829,7 +3829,7 @@ def fetch_and_send_trade_signal():
             result = fetch_and_send_trade_signal()
             return jsonify({"status": result})
 
-def monitor_trade_success():
+        def monitor_trade_success():
             # Check for successful trades and notify user
             successful_trades = get_successful_trades()
 
@@ -3857,7 +3857,7 @@ def monitor_trade_success():
             result = monitor_trade_success()
             return jsonify({"status": result})
 
-def user_leaderboard():
+        def user_leaderboard():
             users_ref = db.collection("users").order_by("profit", direction=firestore.Query.DESCENDING).limit(10).stream()
             leaderboard = [{"username": user.id, "profit": user.to_dict().get("profit")} for user in users_ref]
             return leaderboard
@@ -3867,7 +3867,7 @@ def user_leaderboard():
             leaderboard = user_leaderboard()
             return jsonify({"leaderboard": leaderboard})
 
-def get_player_trophies(user_id):
+        def get_player_trophies(user_id):
             user_ref = db.collection("users").document(user_id)
             user_data = user_ref.get().to_dict()
             return user_data.get("trophies", 0)
@@ -3877,7 +3877,7 @@ def get_player_trophies(user_id):
             trophies = get_player_trophies(user_id)
             return jsonify({"user_id": user_id, "trophies": trophies})
 
-def set_trophy_for_user(user_id, trophy_count):
+        def set_trophy_for_user(user_id, trophy_count):
             user_ref = db.collection("users").document(user_id)
             user_ref.update({"trophies": trophy_count})
 
@@ -3888,7 +3888,7 @@ def set_trophy_for_user(user_id, trophy_count):
             set_trophy_for_user(user_id, trophy_count)
             return jsonify({"status": f"Trophy count for {user_id} updated to {trophy_count}"})
 
-def adjust_wallet_balance(user_id, amount):
+        def adjust_wallet_balance(user_id, amount):
             user_ref = db.collection("users").document(user_id)
             user_ref.update({"wallet": firestore.Increment(amount)})
 
@@ -3899,7 +3899,7 @@ def adjust_wallet_balance(user_id, amount):
             adjust_wallet_balance(user_id, amount)
             return jsonify({"status": f"Wallet balance for {user_id} adjusted by {amount}"})
 
-def track_trade_activity(user_id, action, details):
+        def track_trade_activity(user_id, action, details):
             trade_ref = db.collection("trade_activity").document()
             trade_ref.set({
                 "user_id": user_id,
@@ -3917,7 +3917,7 @@ def track_trade_activity(user_id, action, details):
             track_trade_activity(user_id, action, details)
             return jsonify({"status": "Trade activity tracked"})
 
-def monitor_profit_margin():
+        def monitor_profit_margin():
             users_ref = db.collection("users").stream()
             for user in users_ref:
                 user_data = user.to_dict()
@@ -3929,7 +3929,7 @@ def monitor_profit_margin():
             monitor_profit_margin()
             return jsonify({"status": "Profit margin monitoring complete"})
 
-def get_trade_history(user_id):
+        def get_trade_history(user_id):
             trades_ref = db.collection("trade_activity").where("user_id", "==", user_id).stream()
             trade_history = [{"action": trade.to_dict()["action"], "details": trade.to_dict()["details"]} for trade in trades_ref]
             return trade_history
@@ -3939,7 +3939,7 @@ def get_trade_history(user_id):
             trade_history = get_trade_history(user_id)
             return jsonify({"user_id": user_id, "trade_history": trade_history})
 
-def fetch_current_wallet_balance(user_id):
+        def fetch_current_wallet_balance(user_id):
             user_ref = db.collection("users").document(user_id)
             user_data = user_ref.get().to_dict()
             return user_data.get("wallet", 0.0)
@@ -3949,7 +3949,7 @@ def fetch_current_wallet_balance(user_id):
             balance = fetch_current_wallet_balance(user_id)
             return jsonify({"user_id": user_id, "wallet_balance": balance})
 
-def generate_wallet_report():
+        def generate_wallet_report():
             all_users_ref = db.collection("users").stream()
             report = []
             for user in all_users_ref:
@@ -3966,7 +3966,7 @@ def generate_wallet_report():
             report = generate_wallet_report()
             return jsonify({"report": report})
 
-def fetch_app_statistics():
+        def fetch_app_statistics():
             total_users = len(db.collection("users").stream())
             total_profits = sum([user.to_dict().get("profit", 0) for user in db.collection("users").stream()])
             total_wallets = sum([user.to_dict().get("wallet", 0) for user in db.collection("users").stream()])
