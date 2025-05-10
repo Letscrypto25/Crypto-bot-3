@@ -2914,7 +2914,7 @@ async def edge_ai_emotion_analysis(user_id, user_doc):
         if feedback_msgs:
             full_message = "\n".join(feedback_msgs)
             await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
-        async def edge_ai_confirm_risky_trade(user_id, signal):
+async def edge_ai_confirm_risky_trade(user_id, signal):
             """Prompt user to confirm risky trade patterns before execution."""
             risk_detected = False
             if signal["rsi"] > 80 or signal["rsi"] < 20:
@@ -2929,11 +2929,11 @@ async def edge_ai_emotion_analysis(user_id, user_doc):
                 )
                 await send_telegram_message(user_id, prompt + "\nReply with YES to confirm.")
 
-        async def monitor_confirmations():
+async def monitor_confirmations():
             """Listen for confirmation responses on risky trades."""
             # This is handled by a Telegram command handler where users reply with YES
 
-        async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = update.effective_user.id
             text = update.message.text.strip().upper()
             if text == "YES":
@@ -2945,7 +2945,7 @@ async def edge_ai_emotion_analysis(user_id, user_doc):
 
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_reply))
 
-        def update_trophy_count(user_id, trophies):
+ def update_trophy_count(user_id, trophies):
             """Update user's trophy count in Firebase."""
             user_ref = db.collection("users").document(str(user_id))
             user_ref.set({"trophies": firestore.Increment(trophies)}, merge=True)
