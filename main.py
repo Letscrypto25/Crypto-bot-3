@@ -1289,7 +1289,7 @@ def get_user_tone(user_id):
     doc = db.collection("users").document(str(user_id)).get()
     if doc.exists:
         return doc.to_dict().get("tone", "not set")
-    return "not set"import os
+    return "not set"
     
 import json
 import logging
