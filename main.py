@@ -344,20 +344,22 @@ async def trade_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Check each trade's status
-    for trade_id, trade_data in trades.items():
-        current_price = get_current_price(trade_data['symbol'])  # Example function to get live price
-        stop_loss = trade_data.get('stop_loss')
-        take_profit = trade_data.get('take_profit')
+for trade_id, trade_data in trades.items():
+    current_price = get_current_price(trade_data['symbol'])  # Example function to get live price
+    stop_loss = trade_data.get('stop_loss')
+    take_profit = trade_data.get('take_profit')
 
-        # Check if price hits stop-loss or take-profit
-        if stop_loss and current_price <= stop_loss:
-            await update.message.reply_text(f"Stop-Loss Triggered: Trade ID {trade_id} has hit your stop-loss!")
-            # Optional: Automatically close the trade if needed
-            close_trade(user_id, trade_id)
+    # Check if price hits stop-loss
+    if stop_loss and current_price <= stop_loss:
+        await update.message.reply_text(f"Stop-Loss Triggered: Trade ID {trade_id} has hit your stop-loss!")
+        await close_trade(user_id, trade_id)  # Ensure this function is async
+        await update.message.reply_text(f"Trade ID {trade_id} closed due to Stop-Loss.")
 
-        if take_profit and current_price >= take_profit:
-            await update.message.reply_text(f"Take-Profit Triggered: Trade ID {trade_id} has hit your take-profit!")
-            # Optional: Automatically close the trade if needed
+    # Check if price hits take-profit
+    elif take_profit and current_price >= take_profit:
+        await update.message.reply_text(f"Take-Profit Triggered: Trade ID {trade_id} has reached your target!")
+        await close_trade(user_id, trade_id)
+        await update.message.reply_text(f"Trade ID {trade_id} closed due to Take-Profit.")
             close_trade(user_id, trade_id)
 
 # Function to get the current price of a trading pair
