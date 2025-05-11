@@ -2562,8 +2562,8 @@ def get_user_tone(user_id):
     if doc.exists:
         return doc.to_dict().get("tone", "not set")
     return "not set"
-        return doc.to_dict().get("tone", "analyst")
-    return "analyst"
+        
+    return doc.to_dict().get("tone", "analyst")
 
 # Generate personalized coaching message based on selected tone
 def generate_coaching_message(tone, context_data):
