@@ -1290,6 +1290,7 @@ def get_user_tone(user_id):
     if doc.exists:
         return doc.to_dict().get("tone", "not set")
     return "not set"import os
+    
 import json
 import logging
 import firebase_admin
