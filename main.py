@@ -345,11 +345,6 @@ async def trade_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check each trade's status
 for trade_id, trade_data in trades.items():
-    current_price = get_current_price(trade_data['symbol'])  # Example function to get live price
-    stop_loss = trade_data.get('stop_loss')
-    take_profit = trade_data.get('take_profit')
-# Check each trade's status
-for trade_id, trade_data in trades.items():
     current_price = get_current_price(trade_data['symbol'])  # Function to get live price
     stop_loss = trade_data.get('stop_loss')
     take_profit = trade_data.get('take_profit')
@@ -357,7 +352,7 @@ for trade_id, trade_data in trades.items():
     # Check if price hits stop-loss
     if stop_loss and current_price <= stop_loss:
         await update.message.reply_text(f"Stop-Loss Triggered: Trade ID {trade_id} has hit your stop-loss!")
-        await close_trade(user_id, trade_id)
+        await close_trade(user_id, trade_id)  # Ensure this function is async
         await update.message.reply_text(f"Trade ID {trade_id} closed due to Stop-Loss.")
 
     # Check if price hits take-profit
@@ -365,7 +360,6 @@ for trade_id, trade_data in trades.items():
         await update.message.reply_text(f"Take-Profit Triggered: Trade ID {trade_id} has reached your target!")
         await close_trade(user_id, trade_id)
         await update.message.reply_text(f"Trade ID {trade_id} closed due to Take-Profit.")
-
 # Function to get the current price of a trading pair
 def get_current_price_alt(symbol):
     # Placeholder function for live price fetching from Binance or Luno
