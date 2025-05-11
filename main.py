@@ -2895,7 +2895,7 @@ async def edge_ai_emotion_check(user_id, trade_context):
                 full_message = "\n".join(feedback_msgs)
                 await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
 
-        async def edge_ai_confirm_risky_trade(user_id, signal):
+async def edge_ai_confirm_risky_trade(user_id, signal):
     # your code
             """Prompt user to confirm risky trade patterns before execution."""
             risk_detected = False
