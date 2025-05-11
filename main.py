@@ -2928,51 +2928,51 @@ async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_reply))
 
-        def update_trophy_count(user_id, trophies):
-            """Update user's trophy count in Firebase."""
-            user_ref = db.collection("users").document(str(user_id))
-            user_ref.set({"trophies": firestore.Increment(trophies)}, merge=True)
+def update_trophy_count(user_id, trophies):
+    """Update user's trophy count in Firebase."""
+    user_ref = db.collection("users").document(str(user_id))
+    user_ref.set({"trophies": firestore.Increment(trophies)}, merge=True)
 
-        def reset_trophies_every_season():
-            """Reset all user trophies and rank top 100 for payout."""
-            users_ref = db.collection("users")
-            all_users = users_ref.stream()
-            trophy_leaderboard = []
+def reset_trophies_every_season():
+    """Reset all user trophies and rank top 100 for payout."""
+    users_ref = db.collection("users")
+    all_users = users_ref.stream()
+    trophy_leaderboard = []
 
-            for doc in all_users:
-                data = doc.to_dict()
-                trophies = data.get("trophies", 0)
-                trophy_leaderboard.append((doc.id, trophies))
+    for doc in all_users:
+        data = doc.to_dict()
+        trophies = data.get("trophies", 0)
+        trophy_leaderboard.append((doc.id, trophies))
 
-            trophy_leaderboard.sort(key=lambda x: x[1], reverse=True)
-            top_100 = trophy_leaderboard[:100]
+        trophy_leaderboard.sort(key=lambda x: x[1], reverse=True)
+        top_100 = trophy_leaderboard[:100]
 
-            season_pool = get_season_pool_amount()
-            distribute_trophy_rewards(top_100, season_pool)
+        season_pool = get_season_pool_amount()
+        distribute_trophy_rewards(top_100, season_pool)
 
             # Reset all trophies
-            for user_id, _ in trophy_leaderboard:
-                users_ref.document(user_id).update({"trophies": 0})
+        for user_id, _ in trophy_leaderboard:
+            users_ref.document(user_id).update({"trophies": 0})
 
-        def get_season_pool_amount():
-            """Placeholder to fetch the current 6-month trophy pool balance."""
-            return 1000  # Simulated value for now
+def get_season_pool_amount():
+    """Placeholder to fetch the current 6-month trophy pool balance."""
+    return 1000  # Simulated value for now
 
-        def distribute_trophy_rewards(top_users, total_amount):
-            """Distribute trophy reset rewards to top 100 users."""
-            reward_structure = [0.20, 0.15, 0.10] + [0.01]*97  # Descending reward
-            for idx, (user_id, _) in enumerate(top_users):
-                reward_pct = reward_structure[idx]
-                reward = total_amount * reward_pct
+def distribute_trophy_rewards(top_users, total_amount):
+    """Distribute trophy reset rewards to top 100 users."""
+    reward_structure = [0.20, 0.15, 0.10] + [0.01]*97  # Descending reward
+    for idx, (user_id, _) in enumerate(top_users):
+        reward_pct = reward_structure[idx]
+        reward = total_amount * reward_pct
                 send_telegram_message(user_id, f"You earned {reward:.2f} from the trophy reset pool!")
 
-        def create_hall_of_fame_entry(user_id, trophy_count):
-            """Add user to hall of fame list after reset."""
-            db.collection("hall_of_fame").add({
-                "user_id": user_id,
-                "trophies": trophy_count,
-                "timestamp": datetime.utcnow()
-            })
+def create_hall_of_fame_entry(user_id, trophy_count):
+    """Add user to hall of fame list after reset."""
+    db.collection("hall_of_fame").add({
+        "user_id": user_id,
+        "trophies": trophy_count,
+        "timestamp": datetime.utcnow()
+    })
 
 def fetch_hall_of_fame():
     """Retrieve top Hall of Fame entries."""
@@ -2993,111 +2993,111 @@ def hall_of_fame_route():
     leaderboard = fetch_hall_of_fame()
     return jsonify(leaderboard)
 
-        async def send_tournament_results():
-            """Send final daily/weekly tournament results via Telegram."""
-            leaderboard = calculate_tournament_leaderboard()
-            for idx, (user_id, score) in enumerate(leaderboard):
-                rank = idx + 1
-                message = f"**Tournament Result**\nRank: {rank}\nScore: {score}"
-                await send_telegram_message(user_id, message)
+async def send_tournament_results():
+    """Send final daily/weekly tournament results via Telegram."""
+    leaderboard = calculate_tournament_leaderboard()
+    for idx, (user_id, score) in enumerate(leaderboard):
+        rank = idx + 1
+        message = f"**Tournament Result**\nRank: {rank}\nScore: {score}"
+        await send_telegram_message(user_id, message)
 
-        def calculate_tournament_leaderboard():
-            """Compute tournament rankings based on profit %."""
-            users = db.collection("users").stream()
-            leaderboard = []
-            for doc in users:
-                data = doc.to_dict()
-                profit = data.get("tournament_profit", 0)
-                leaderboard.append((doc.id, profit))
-            leaderboard.sort(key=lambda x: x[1], reverse=True)
-            return leaderboard[:100]
+def calculate_tournament_leaderboard():
+    """Compute tournament rankings based on profit %."""
+    users = db.collection("users").stream()
+    leaderboard = []
+    for doc in users:
+        data = doc.to_dict()
+        profit = data.get("tournament_profit", 0)
+        leaderboard.append((doc.id, profit))
+        leaderboard.sort(key=lambda x: x[1], reverse=True)
+    return leaderboard[:100]
 
-        def distribute_tournament_rewards():
-            """Distribute rewards based on tournament leaderboard."""
-            leaderboard = calculate_tournament_leaderboard()
-            total_pool = get_tournament_pool_balance()
-            reward_structure = [0.25, 0.15, 0.10] + [0.005]*97
-
-            for idx, (user_id, profit) in enumerate(leaderboard):
-                if idx < len(reward_structure):
+def distribute_tournament_rewards():
+    """Distribute rewards based on tournament leaderboard."""
+    leaderboard = calculate_tournament_leaderboard()
+    total_pool = get_tournament_pool_balance()
+    reward_structure = [0.25, 0.15, 0.10] + [0.005]*97
+    
+    for idx, (user_id, profit) in enumerate(leaderboard):
+        if idx < len(reward_structure):
                     share = total_pool * reward_structure[idx]
                     db.collection("users").document(user_id).set(
                         {"wallet": firestore.Increment(share)}, merge=True)
                     asyncio.run(send_telegram_message(
                         user_id, f"Congrats! You won {share:.2f} in the tournament."))
 
-        def get_tournament_pool_balance():
-            """Placeholder to fetch current tournament pool total."""
-            return 500  # Replace with actual balance logic
+def get_tournament_pool_balance():
+    """Placeholder to fetch current tournament pool total."""
+    return 500  # Replace with actual balance logic
 
-        def reset_tournament_profits():
-            """Clear each user's tournament profits after reward."""
-            users = db.collection("users").stream()
-            for doc in users:
-                db.collection("users").document(doc.id).update({
-                    "tournament_profit": 0
-                })
+def reset_tournament_profits():
+    """Clear each user's tournament profits after reward."""
+    users = db.collection("users").stream()
+    for doc in users:
+        db.collection("users").document(doc.id).update({
+            "tournament_profit": 0
+        })
 
-        def calculate_app_fee(profit_amount):
-            """Calculate 0.50% app fee on total profit."""
-            return round(profit_amount * 0.005, 2)
+def calculate_app_fee(profit_amount):
+    """Calculate 0.50% app fee on total profit."""
+    return round(profit_amount * 0.005, 2)
 
-        def calculate_tournament_cut(profit_amount):
-            """Calculate 1.25% total tournament deduction from profits."""
-            return round(profit_amount * 0.0125, 2)
+def calculate_tournament_cut(profit_amount):
+    """Calculate 1.25% total tournament deduction from profits."""
+    return round(profit_amount * 0.0125, 2)
 
-        def split_tournament_cut(total_cut):
-            """Split 1% cut: 70% to tournaments, 30% to trophy pool."""
-            tournament_pool = total_cut * 0.70
-            trophy_pool = total_cut * 0.30
-            return tournament_pool, trophy_pool
+def split_tournament_cut(total_cut):
+    """Split 1% cut: 70% to tournaments, 30% to trophy pool."""
+    tournament_pool = total_cut * 0.70
+    trophy_pool = total_cut * 0.30
+    return tournament_pool, trophy_pool
 
-        def handle_trade_profit_split(user_id, profit_amount):
-            """Deduct app fee and split tournament cut on profit."""
-            app_fee = calculate_app_fee(profit_amount)
-            tournament_cut = calculate_tournament_cut(profit_amount)
-            tournament_pool, trophy_pool = split_tournament_cut(tournament_cut)
+def handle_trade_profit_split(user_id, profit_amount):
+    """Deduct app fee and split tournament cut on profit."""
+    app_fee = calculate_app_fee(profit_amount)
+    tournament_cut = calculate_tournament_cut(profit_amount)
+    tournament_pool, trophy_pool = split_tournament_cut(tournament_cut)
 
-            net_profit = profit_amount - (app_fee + tournament_cut)
+    net_profit = profit_amount - (app_fee + tournament_cut)
 
-            user_ref = db.collection("users").document(user_id)
-            user_ref.set({
-                "wallet": firestore.Increment(net_profit),
-                "tournament_contribution": firestore.Increment(tournament_pool),
-                "trophy_contribution": firestore.Increment(trophy_pool),
-            }, merge=True)
+    user_ref = db.collection("users").document(user_id)
+    user_ref.set({
+        "wallet": firestore.Increment(net_profit),
+        "tournament_contribution": firestore.Increment(tournament_pool),
+        "trophy_contribution": firestore.Increment(trophy_pool),
+    }, merge=True)
 
-            return {
-                "net_profit": net_profit,
-                "app_fee": app_fee,
-                "tournament_cut": tournament_cut,
-                "tournament_pool": tournament_pool,
-                "trophy_pool": trophy_pool
-            }
+    return {
+        "net_profit": net_profit,
+        "app_fee": app_fee,
+        "tournament_cut": tournament_cut,
+        "tournament_pool": tournament_pool,
+        "trophy_pool": trophy_pool
+    }
 
-        async def send_profit_summary(user_id, profit_summary):
-            """Send a summary of fee breakdown and net gain."""
-            msg = (
-                f"Trade Result:\n"
-                f"Net Profit: {profit_summary['net_profit']:.2f}\n"
-                f"App Fee (0.5%): {profit_summary['app_fee']:.2f}\n"
-                f"Tournament Contribution: {profit_summary['tournament_cut']:.2f}\n"
-                f"  • 70% Daily/Weekly Pool: {profit_summary['tournament_pool']:.2f}\n"
-                f"  • 30% Trophy Reset Pool: {profit_summary['trophy_pool']:.2f}"
-            )
-            await send_telegram_message(user_id, msg)
+async def send_profit_summary(user_id, profit_summary):
+    """Send a summary of fee breakdown and net gain."""
+    msg = (
+        f"Trade Result:\n"
+        f"Net Profit: {profit_summary['net_profit']:.2f}\n"
+        f"App Fee (0.5%): {profit_summary['app_fee']:.2f}\n"
+        f"Tournament Contribution: {profit_summary['tournament_cut']:.2f}\n"
+        f"  • 70% Daily/Weekly Pool: {profit_summary['tournament_pool']:.2f}\n"
+        f"  • 30% Trophy Reset Pool: {profit_summary['trophy_pool']:.2f}"
+    )
+     await send_telegram_message(user_id, msg)
 
 async def update_trade_result(user_id, profit_amount):
-            """Full pipeline: update user profit, fees, pools, and notify."""
-            summary = handle_trade_profit_split(user_id, profit_amount)
-            await send_profit_summary(user_id, summary)
+        """Full pipeline: update user profit, fees, pools, and notify."""
+        summary = handle_trade_profit_split(user_id, profit_amount)
+        await send_profit_summary(user_id, summary)
 
-        def get_user_balance(user_id):
-            """Get user wallet balance from Firestore."""
-            doc = db.collection("users").document(user_id).get()
-            if doc.exists:
-                return doc.to_dict().get("wallet", 0)
-            return 0
+def get_user_balance(user_id):
+    """Get user wallet balance from Firestore."""
+    doc = db.collection("users").document(user_id).get()
+    if doc.exists:
+        return doc.to_dict().get("wallet", 0)
+    return 0
 
         def get_user_trophies(user_id):
             """Get user's trophy count."""
