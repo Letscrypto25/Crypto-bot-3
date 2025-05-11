@@ -2894,38 +2894,39 @@ async def edge_ai_emotion_check(user_id, trade_context):
             if feedback_msgs:
                 full_message = "\n".join(feedback_msgs)
                 await send_telegram_message(user_id, f"**Edge AI Feedback:**\n{full_message}")
-
 async def edge_ai_confirm_risky_trade(user_id, signal):
-    # your code
-            """Prompt user to confirm risky trade patterns before execution."""
-            risk_detected = False
-            if signal["rsi"] > 80 or signal["rsi"] < 20:
-                risk_detected = True
+    """Prompt user to confirm risky trade patterns before execution."""
+    risk_detected = False
+    if signal["rsi"] > 80 or signal["rsi"] < 20:
+        risk_detected = True
 
-            if risk_detected:
-                prompt = (
-                    "Edge AI has detected a high-risk trade setup.\n"
-                    f"Pair: {signal['pair']}\n"
-                    f"RSI: {signal['rsi']}\n"
-                    "Are you sure you want to proceed?"
-                )
-                await send_telegram_message(user_id, prompt + "\nReply with YES to confirm.")
+    if risk_detected:
+        prompt = (
+            "Edge AI has detected a high-risk trade setup.\n"
+            f"Pair: {signal['pair']}\n"
+            f"RSI: {signal['rsi']}\n"
+            "Are you sure you want to proceed?"
+        )
+        await send_telegram_message(user_id, prompt + "\nReply with YES to confirm.")
 
-        async def monitor_confirmations():
-            """Listen for confirmation responses on risky trades."""
-            # This is handled by a Telegram command handler where users reply with YES
 
-        async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-            user_id = update.effective_user.id
-            text = update.message.text.strip().upper()
-            if text == "YES":
-                # Mark user confirmed
-                confirmation_flags[user_id] = True
-                await update.message.reply_text("Confirmed. Proceeding with trade.")
-            else:
-                await update.message.reply_text("Trade cancelled due to no confirmation.")
+async def monitor_confirmations():
+    """Listen for confirmation responses on risky trades."""
+    # This is handled by a Telegram command handler where users reply with YES
 
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_reply))
+
+async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.strip().upper()
+    if text == "YES":
+        # Mark user confirmed
+        confirmation_flags[user_id] = True
+        await update.message.reply_text("Confirmed. Proceeding with trade.")
+    else:
+        await update.message.reply_text("Trade cancelled due to no confirmation.")
+
+
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_reply))
 
         def update_trophy_count(user_id, trophies):
             """Update user's trophy count in Firebase."""
