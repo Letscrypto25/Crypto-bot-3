@@ -21,22 +21,23 @@ logger = logging.getLogger("main")
 
 # === Firebase Initialization (from base64 secret) ===
 # === Firebase Initialization (from base64 secret) ===
+
 try:
     if not firebase_admin._apps:
         firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
         if not firebase_creds_b64:
-            raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+            raise ValueError("FIREBASE_CREDENTIALS env var not set or empty")
 
+        print("FIREBASE_CREDENTIALS length:", len(firebase_creds_b64))  # Optional debug
         firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
         firebase_creds = json.loads(firebase_creds_json)
+
         cred = credentials.Certificate(firebase_creds)
         firebase_admin.initialize_app(cred, {
             "databaseURL": firebase_creds.get("databaseURL")
         })
-
         db = firestore.client()
         logger.info("Firebase initialized successfully")
-
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
     raise
