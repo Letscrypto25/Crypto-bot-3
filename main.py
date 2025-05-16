@@ -7,10 +7,6 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Firebase
-import firebase_admin
-from firebase_admin import credentials, db
-
 # Telegram
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -18,17 +14,18 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 # Binance
 from binance.client import Client as BinanceClient
 
-# Luno
+# Firebase
+from firebase_admin import credentials, firestore, auth
+import firebase_admin
+
+# Set the path to your Firebase credentials
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "crypto-bot-3-firebase-adminsdk-fbsvc-b07a760124.json"
 
-import firebase_admin
-from firebase_admin import credentials, firestore, auth
-
-firebase_admin.initialize_app()
+# Initialize Firebase with explicit credentials
+cred = credentials.Certificate("crypto-bot-3-firebase-adminsdk-fbsvc-b07a760124.json")
+firebase_admin.initialize_app(cred)
 
 db = firestore.client()
-# Now you can use auth as well, e.g.:
-# user = auth.get_user_by_email('example@email.com')
 
 # Load .env variables
 load_dotenv()
