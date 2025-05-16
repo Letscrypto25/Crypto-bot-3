@@ -1,6 +1,6 @@
-
 import os
 import json
+import base64
 import logging
 from dotenv import load_dotenv
 
@@ -19,14 +19,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
-# === Firebase Initialization ===
-
+# === Firebase Initialization (from base64 secret) ===
 try:
     if not firebase_admin._apps:
-        firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS")
-        if not firebase_creds_json:
+        firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
+        if not firebase_creds_b64:
             raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
 
+        firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
         firebase_creds = json.loads(firebase_creds_json)
         cred = credentials.Certificate(firebase_creds)
         firebase_admin.initialize_app(cred, {
@@ -34,6 +34,7 @@ try:
         })
 
         db = firestore.client()
+        logger.info("Firebase initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
     raise
@@ -42,12 +43,9 @@ except Exception as e:
 telegram_token = os.getenv("BOT_TOKEN")
 if not telegram_token:
     raise ValueError("BOT_TOKEN environment variable not set")
+
 telegram_app = Application.builder().token(telegram_token).build()
 logger.info("Telegram bot initialized successfully")
-
-# === Your other code starts here ===
-
-# === Firebase User Utilities ===
 
 def get_user_data(user_id):
     return db.reference(f"users/{user_id}").get() or {}
