@@ -1,13 +1,9 @@
 # === main.py (Lines 1–500) ===
 
 import os
-import os
 import json
-import time
-import logging
-from datetime import datetime
-from dotenv import load_dotenv
 import base64
+from dotenv import load_dotenv
 
 # Telegram
 from telegram import Update
@@ -22,6 +18,22 @@ import firebase_admin
 
 # Load .env variables
 load_dotenv()
+
+# Decode Firebase credentials from base64 env var
+firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
+if not firebase_creds_b64:
+    raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+
+firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
+firebase_creds_dict = json.loads(firebase_creds_json)
+
+# Initialize Firebase with decoded credentials dict
+cred = credentials.Certificate(firebase_creds_dict)
+firebase_admin.initialize_app(cred)
+
+db = firestore.client()
+
+# Your other code below...
 
 # Load Firebase credentials from environment variable
 firebase_creds_encoded = os.getenv("FIREBASE_CREDENTIALS")
