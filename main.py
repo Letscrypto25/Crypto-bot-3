@@ -33,9 +33,6 @@ try:
 firebase_creds = json.loads(firebase_creds_json)
 cred = credentials.Certificate(firebase_creds)
 firebase_admin.initialize_app(cred, {"databaseURL": firebase_creds.get("databaseURL")})
-        cred = credentials.Certificate(firebase_creds_dict)
-        firebase_admin.initialize_app(cred)
-        logger.info("Firebase initialized successfully")
 
     db = firestore.client()
 
