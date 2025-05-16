@@ -29,8 +29,9 @@ try:
         if not firebase_creds_b64:
             raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
 
-        firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
-        firebase_creds_dict = json.loads(firebase_creds_json)
+        firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS")
+firebase_creds = json.loads(firebase_creds_json)
+cred = credentials.Certificate(firebase_creds)
 
         cred = credentials.Certificate(firebase_creds_dict)
         firebase_admin.initialize_app(cred)
