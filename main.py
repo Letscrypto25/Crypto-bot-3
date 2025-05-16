@@ -1,9 +1,9 @@
 # === main.py (Lines 1–500) ===
-
 import os
 import json
 import base64
 from dotenv import load_dotenv
+import logging
 
 # Telegram
 from telegram import Update
@@ -16,22 +16,34 @@ from binance.client import Client as BinanceClient
 from firebase_admin import credentials, firestore, auth
 import firebase_admin
 
-# Load .env variables
+# Load .env variables early
 load_dotenv()
 
-# Decode Firebase credentials from base64 env var
-firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
-if not firebase_creds_b64:
-    raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+# Setup logging (optional, helpful for debugging)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
-firebase_creds_dict = json.loads(firebase_creds_json)
+try:
+    # Decode Firebase credentials from base64 env var
+    firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
+    if not firebase_creds_b64:
+        raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
 
-# Initialize Firebase with decoded credentials dict
-cred = credentials.Certificate(firebase_creds_dict)
-firebase_admin.initialize_app(cred)
+    firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
+    firebase_creds_dict = json.loads(firebase_creds_json)
 
-db = firestore.client()
+    # Initialize Firebase with decoded credentials dict
+    cred = credentials.Certificate(firebase_creds_dict)
+    firebase_admin.initialize_app(cred)
+
+    db = firestore.client()
+    logger.info("Firebase initialized successfully")
+
+except Exception as e:
+    logger.error(f"Failed to initialize Firebase: {e}")
+    raise  # Re-raise so app fails early if Firebase init fails
+
+# Your other code below...
 
 # Your other code below...
 
