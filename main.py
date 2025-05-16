@@ -19,8 +19,16 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from binance.client import Client as BinanceClient
 
 # Luno
-import requests
-from requests.auth import HTTPBasicAuth
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "crypto-bot-3-firebase-adminsdk-fbsvc-b07a760124.json"
+
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
+
+firebase_admin.initialize_app()
+
+db = firestore.client()
+# Now you can use auth as well, e.g.:
+# user = auth.get_user_by_email('example@email.com')
 
 # Load .env variables
 load_dotenv()
