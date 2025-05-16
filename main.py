@@ -1,44 +1,38 @@
+
 import os
 import json
-import base64
 import logging
 from dotenv import load_dotenv
-import firebase_admin
-from firebase_admin import credentials, db
 
-# Telegram
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
+
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# Binance
 from binance.client import Client as BinanceClient
 
-# Firebase
-from firebase_admin import credentials, firestore, auth
-import firebase_admin
-
-# === Load .env and setup logging ===
+# === Load environment ===
 load_dotenv()
 
+# === Logging ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
 # === Firebase Initialization ===
-# === Firebase Initialization ===
 try:
     if not firebase_admin._apps:
-        firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
-        if not firebase_creds_b64:
+        firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS")
+        if not firebase_creds_json:
             raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
 
-        # Firebase credentials from env (stored as raw JSON string, not base64)
-firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS")
-firebase_creds = json.loads(firebase_creds_json)
-cred = credentials.Certificate(firebase_creds)
-firebase_admin.initialize_app(cred, {"databaseURL": firebase_creds.get("databaseURL")})
+        firebase_creds = json.loads(firebase_creds_json)
+        cred = credentials.Certificate(firebase_creds)
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": firebase_creds.get("databaseURL")
+        })
 
-    db = firestore.client()
-
+        db = firestore.client()
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
     raise
@@ -47,7 +41,6 @@ except Exception as e:
 telegram_token = os.getenv("BOT_TOKEN")
 if not telegram_token:
     raise ValueError("BOT_TOKEN environment variable not set")
-
 telegram_app = Application.builder().token(telegram_token).build()
 logger.info("Telegram bot initialized successfully")
 
