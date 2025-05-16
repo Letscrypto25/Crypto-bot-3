@@ -3,6 +3,8 @@ import json
 import base64
 import logging
 from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials, db
 
 # Telegram
 from telegram import Update
@@ -29,7 +31,8 @@ try:
         if not firebase_creds_b64:
             raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
 
-        firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS")
+        # Firebase credentials from env (stored as raw JSON string, not base64)
+firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS")
 firebase_creds = json.loads(firebase_creds_json)
 cred = credentials.Certificate(firebase_creds)
 firebase_admin.initialize_app(cred, {"databaseURL": firebase_creds.get("databaseURL")})
