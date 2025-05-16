@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
 # === Firebase Initialization ===
+
 try:
     if not firebase_admin._apps:
         firebase_creds_json = os.getenv("FIREBASE_CREDENTIALS")
