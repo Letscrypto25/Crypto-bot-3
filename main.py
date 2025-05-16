@@ -1,11 +1,13 @@
 # === main.py (Lines 1–500) ===
 
 import os
+import os
 import json
 import time
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+import base64
 
 # Telegram
 from telegram import Update
@@ -18,18 +20,24 @@ from binance.client import Client as BinanceClient
 from firebase_admin import credentials, firestore, auth
 import firebase_admin
 
-# Set the path to your Firebase credentials
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "crypto-bot-3-firebase-adminsdk-fbsvc-b07a760124.json"
+# Load .env variables
+load_dotenv()
 
-# Initialize Firebase with explicit credentials
-cred = credentials.Certificate("crypto-bot-3-firebase-adminsdk-fbsvc-b07a760124.json")
+# Load Firebase credentials from environment variable
+firebase_creds_encoded = os.getenv("FIREBASE_CREDENTIALS")
+if not firebase_creds_encoded:
+    raise Exception("FIREBASE_CREDENTIALS environment variable not set.")
+
+firebase_creds_json = base64.b64decode(firebase_creds_encoded).decode('utf-8')
+cred_dict = json.loads(firebase_creds_json)
+
+# Initialize Firebase with decoded credentials
+cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
 
 db = firestore.client()
 
-# Load .env variables
 load_dotenv()
-
 # Firebase Initialization
 firebase_credentials = os.getenv("FIREBASE_CREDENTIALS")
 if not firebase_credentials:
