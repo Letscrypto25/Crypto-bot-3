@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
 # === Firebase Initialization (from base64 secret) ===
+# === Firebase Initialization (from base64 secret) ===
 try:
     if not firebase_admin._apps:
         firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
@@ -35,6 +36,7 @@ try:
 
         db = firestore.client()
         logger.info("Firebase initialized successfully")
+
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
     raise
