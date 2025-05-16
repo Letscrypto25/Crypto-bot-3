@@ -1,9 +1,8 @@
-# === main.py (Lines 1–500) ===
 import os
 import json
 import base64
-from dotenv import load_dotenv
 import logging
+from dotenv import load_dotenv
 
 # Telegram
 from telegram import Update
@@ -16,15 +15,14 @@ from binance.client import Client as BinanceClient
 from firebase_admin import credentials, firestore, auth
 import firebase_admin
 
-# Load .env variables early
+# === Load .env and setup logging ===
 load_dotenv()
 
-# Setup logging (optional, helpful for debugging)
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("main")
 
+# === Firebase Initialization ===
 try:
-    # Decode Firebase credentials from base64 env var
     firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
     if not firebase_creds_b64:
         raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
@@ -32,53 +30,24 @@ try:
     firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
     firebase_creds_dict = json.loads(firebase_creds_json)
 
-    # Initialize Firebase with decoded credentials dict
     cred = credentials.Certificate(firebase_creds_dict)
     firebase_admin.initialize_app(cred)
-
     db = firestore.client()
     logger.info("Firebase initialized successfully")
 
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
-    raise  # Re-raise so app fails early if Firebase init fails
+    raise
 
-# Your other code below...
-
-# Your other code below...
-
-# Load Firebase credentials from environment variable
-firebase_creds_encoded = os.getenv("FIREBASE_CREDENTIALS")
-if not firebase_creds_encoded:
-    raise Exception("FIREBASE_CREDENTIALS environment variable not set.")
-
-firebase_creds_json = base64.b64decode(firebase_creds_encoded).decode('utf-8')
-cred_dict = json.loads(firebase_creds_json)
-
-# Initialize Firebase with decoded credentials
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-
-db = firestore.client()
-
-load_dotenv()
-# Firebase Initialization
-firebase_credentials = os.getenv("FIREBASE_CREDENTIALS")
-if not firebase_credentials:
-    raise Exception("Missing FIREBASE_CREDENTIALS")
-
-cred = credentials.Certificate(json.loads(firebase_credentials))
-firebase_admin.initialize_app(cred, {
-    'databaseURL': os.getenv("FIREBASE_URL")
-})
-
-# Telegram Bot Setup
+# === Telegram Bot Setup ===
 telegram_token = os.getenv("BOT_TOKEN")
-telegram_app = Application.builder().token(telegram_token).build()
+if not telegram_token:
+    raise ValueError("BOT_TOKEN environment variable not set")
 
-# Logging Setup
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("main")
+telegram_app = Application.builder().token(telegram_token).build()
+logger.info("Telegram bot initialized successfully")
+
+# === Your other code starts here ===
 
 # === Firebase User Utilities ===
 
