@@ -1,3 +1,4 @@
+from flask import Flask, request
 import os
 import base64
 import logging
@@ -12,7 +13,6 @@ from firebase_admin import credentials, db
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
-from flask import Flask, request
 # === Exchange API clients ===
 from binance.client import Client as BinanceClient
 
