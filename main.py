@@ -1,14 +1,15 @@
-import os
+
 import os
 import base64
 import logging
 from dotenv import load_dotenv
-
 import firebase_admin 
 from firebase_admin import credentials, firestore
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 load_dotenv()
+
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # === Logging setup ===
 logging.basicConfig(level=logging.INFO)
