@@ -7,7 +7,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
-ENV FIREBASE_CREDENTIALS="{your_firebase_json_credentials}"
+# Use path-based credentials
+ENV FIREBASE_CREDENTIALS_PATH="/app/crypto-bot-3-firebase-adminsdk-fbsvc-b07a760124.json"
+
 ENV SECRET_KEY="{your_32_char_secret_key}"
 ENV BASE_URL="https://crypto-bot-3-white-wind-424.fly.dev"
 ENV BOT_TOKEN="{your_telegram_bot_token}"
