@@ -1,7 +1,6 @@
 import os
 import base64
 import logging
-import python-telegram-bot
 from dotenv import load_dotenv
 from telegram import Update
 
