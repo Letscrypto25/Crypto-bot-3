@@ -1,11 +1,10 @@
 
 import os
-import os
 import base64
 import logging
 from dotenv import load_dotenv
 import firebase_admin
-from firebase_admin import credentials, db  # Changed from firestore to db (Realtime DB)
+from firebase_admin import credentials, db  # Using Realtime DB
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -17,8 +16,6 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
-# === Firebase Initialization (from base64 JSON) ===
-try:
 # === Firebase Initialization (from base64 JSON) ===
 try:
     if not firebase_admin._apps:
@@ -34,12 +31,12 @@ try:
         with open(firebase_cred_path, "w", encoding="utf-8") as f:
             f.write(firebase_json_str)
 
-        # Initialize Firebase (change 'databaseURL' if you're using Realtime DB)
+        # Initialize Firebase App with Realtime DB
         cred = credentials.Certificate(firebase_cred_path)
-        firebase_admin.initialize_app(cred)
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": os.getenv("FIREBASE_DATABASE_URL")  # Ensure this env var is set
+        })
 
-        # Firestore client (for Firestore use)
-        db = firestore.client()
         logger.info("Firebase initialized successfully")
 
 except Exception as e:
