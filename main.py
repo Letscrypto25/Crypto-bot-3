@@ -1,11 +1,12 @@
 import os
 import base64
 import logging
+import python-telegram-bot
 from dotenv import load_dotenv
 
 import firebase_admin
 from firebase_admin import credentials, firestore
-
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 # === Load environment variables ===
 load_dotenv()
 
