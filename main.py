@@ -1,21 +1,15 @@
 import os
-import os
 import base64
 import logging
 from dotenv import load_dotenv
 
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-
-from binance.client import Client as BinanceClient
-
-# === Load environment ===
+# === Load environment variables ===
 load_dotenv()
 
-# === Logging ===
+# === Logging setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
@@ -23,16 +17,19 @@ logger = logging.getLogger("main")
 try:
     if not firebase_admin._apps:
         firebase_json_b64 = os.getenv("FIREBASE_CREDENTIALS_JSON")
-        firebase_cred_path = "/tmp/firebase_credentials.json"
-
         if not firebase_json_b64:
             raise ValueError("FIREBASE_CREDENTIALS_JSON env var not set or empty")
 
+        # Write decoded credentials to temp file
+        firebase_cred_path = "/tmp/firebase_credentials.json"
         with open(firebase_cred_path, "wb") as f:
             f.write(base64.b64decode(firebase_json_b64))
 
+        # Initialize Firebase with credentials
         cred = credentials.Certificate(firebase_cred_path)
         firebase_admin.initialize_app(cred)
+
+        # Initialize Firestore client
         db = firestore.client()
         logger.info("Firebase initialized successfully")
 except Exception as e:
