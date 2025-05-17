@@ -9,7 +9,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 load_dotenv()
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # === Logging setup ===
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +45,6 @@ except Exception as e:
 telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
 if not telegram_token:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
-
 telegram_app = Application.builder().token(telegram_token).build()
 logger.info("Telegram bot initialized successfully")
 
@@ -490,20 +489,19 @@ def validate_user_config(user_data):
 
 # === Final Start Function ===
 def main():
-    logger.info("Starting bot...")
-    run_all_bots()
+    logger.info("Starting bot with webhook...")
+    run_all_bots()  # Optional if you use auto bot loop
 
-    port = int(os.getenv("PORT", 8443))
+    port = int(os.getenv("PORT", 8080))
+    bot_token = os.getenv("BOT_TOKEN")
     webhook_url = os.getenv("WEBHOOK_URL")
+
+    if not webhook_url:
+        raise ValueError("WEBHOOK_URL env var is required for webhook")
 
     telegram_app.run_webhook(
         listen="0.0.0.0",
         port=port,
-        url_path=os.getenv("BOT_TOKEN"),
-        webhook_url=f"{webhook_url}/{os.getenv('BOT_TOKEN')}"
-    )
-
-if __name__ == "__main__":
-    main()
-    
-   
+        url_path=bot_token,
+        webhook_url=f"{webhook_url}/{bot_token}"
+        )
