@@ -25,8 +25,8 @@ try:
 if not firebase_cred_path:
     raise ValueError("FIREBASE_CREDENTIALS_PATH env var not set or empty")
 
-cred = credentials.Certificate(firebase_cred_path)
-firebase_admin.initialize_app(cred)
+        cred = credentials.Certificate(firebase_cred_path)
+        firebase_admin.initialize_app(cred)
         db = firestore.client()
         logger.info("Firebase initialized successfully")
 except Exception as e:
