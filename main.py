@@ -22,8 +22,8 @@ logger = logging.getLogger("main")
 try:
     if not firebase_admin._apps:
         firebase_cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-if not firebase_cred_path:
-    raise ValueError("FIREBASE_CREDENTIALS_PATH env var not set or empty")
+        if not firebase_cred_path:
+            raise ValueError("FIREBASE_CREDENTIALS_PATH env var not set or empty")
 
         cred = credentials.Certificate(firebase_cred_path)
         firebase_admin.initialize_app(cred)
