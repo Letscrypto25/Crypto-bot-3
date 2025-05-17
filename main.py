@@ -1,6 +1,5 @@
 import os
-import json
-import base64
+import os
 import logging
 from dotenv import load_dotenv
 
@@ -19,23 +18,15 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
-# === Firebase Initialization (from base64 secret) ===
-# === Firebase Initialization (from base64 secret) ===
-
+# === Firebase Initialization (from JSON file path) ===
 try:
     if not firebase_admin._apps:
-        firebase_creds_b64 = os.getenv("FIREBASE_CREDENTIALS")
-        if not firebase_creds_b64:
-            raise ValueError("FIREBASE_CREDENTIALS env var not set or empty")
+        firebase_cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+        if not firebase_cred_path:
+            raise ValueError("FIREBASE_CREDENTIALS_PATH env var not set or empty")
 
-        print("FIREBASE_CREDENTIALS length:", len(firebase_creds_b64))  # Optional debug
-        firebase_creds_json = base64.b64decode(firebase_creds_b64).decode("utf-8")
-        firebase_creds = json.loads(firebase_creds_json)
-
-        cred = credentials.Certificate(firebase_creds)
-        firebase_admin.initialize_app(cred, {
-            "databaseURL": firebase_creds.get("databaseURL")
-        })
+        cred = credentials.Certificate(firebase_cred_path)
+        firebase_admin.initialize_app(cred)
         db = firestore.client()
         logger.info("Firebase initialized successfully")
 except Exception as e:
