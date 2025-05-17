@@ -26,7 +26,7 @@ logger = logging.getLogger("main")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 FIREBASE_DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL")
 FIREBASE_CREDENTIALS_B64 = os.getenv("FIREBASE_CREDENTIALS")
-
+BOT_TOKEN = TELEGRAM_BOT_TOKEN
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
 if not FIREBASE_DATABASE_URL:
