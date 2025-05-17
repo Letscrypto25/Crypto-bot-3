@@ -20,10 +20,13 @@ try:
         if not firebase_json_b64:
             raise ValueError("FIREBASE_CREDENTIALS_JSON env var not set or empty")
 
+        # Decode base64 to UTF-8 JSON string
+        firebase_json_str = base64.b64decode(firebase_json_b64).decode("utf-8")
+
         # Write decoded credentials to temp file
         firebase_cred_path = "/tmp/firebase_credentials.json"
-        with open(firebase_cred_path, "wb") as f:
-            f.write(base64.b64decode(firebase_json_b64))
+        with open(firebase_cred_path, "w", encoding="utf-8") as f:
+            f.write(firebase_json_str)
 
         # Initialize Firebase with credentials
         cred = credentials.Certificate(firebase_cred_path)
