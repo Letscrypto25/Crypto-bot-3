@@ -1,4 +1,3 @@
-
 import os
 import base64
 import logging
@@ -7,6 +6,9 @@ import firebase_admin
 from firebase_admin import credentials, db  # Using Realtime DB
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from datetime import datetime
+import requests
+from requests.auth import HTTPBasicAuth
 
 load_dotenv()
 
@@ -23,40 +25,19 @@ try:
         if not firebase_json_b64:
             raise ValueError("FIREBASE_CREDENTIALS env var not set or empty")
 
-        # Decode base64 to UTF-8 JSON string
         firebase_json_str = base64.b64decode(firebase_json_b64).decode("utf-8")
 
-        # Write decoded credentials to temp file
         firebase_cred_path = "/tmp/firebase_credentials.json"
         with open(firebase_cred_path, "w", encoding="utf-8") as f:
             f.write(firebase_json_str)
 
-        # Initialize Firebase App with Realtime DB
         cred = credentials.Certificate(firebase_cred_path)
         firebase_admin.initialize_app(cred, {
-            "databaseURL": os.getenv("FIREBASE_DATABASE_URL")  # Ensure this env var is set
+            "databaseURL": os.getenv("FIREBASE_DATABASE_URL")
         })
 
         logger.info("Firebase initialized successfully")
 
-except Exception as e:
-    logger.error(f"Failed to initialize Firebase: {e}")
-    raise
-        # Decode base64 to UTF-8 JSON string
-        firebase_json_str = base64.b64decode(firebase_json_b64).decode("utf-8")
-
-        # Write decoded credentials to temp file
-        firebase_cred_path = "/tmp/firebase_credentials.json"
-        with open(firebase_cred_path, "w", encoding="utf-8") as f:
-            f.write(firebase_json_str)
-
-        # Initialize Firebase with credentials
-        cred = credentials.Certificate(firebase_cred_path)
-        firebase_admin.initialize_app(cred)
-
-        # Initialize Firestore client
-        db = firestore.client()
-        logger.info("Firebase initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
     raise
@@ -68,6 +49,8 @@ if not telegram_token:
 telegram_app = Application.builder().token(telegram_token).build()
 logger.info("Telegram bot initialized successfully")
 
+# === Firebase DB Utilities ===
+
 def get_user_data(user_id):
     return db.reference(f"users/{user_id}").get() or {}
 
@@ -78,6 +61,8 @@ def update_user_data(user_id, data):
 def save_trade(user_id, trade_data):
     ref = db.reference(f"trades/{user_id}")
     ref.push(trade_data)
+
+# Continue using the rest of your code exactly as it was...
 
 # === Telegram Commands ===
 
