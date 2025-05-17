@@ -490,11 +490,19 @@ def validate_user_config(user_data):
     return all(user_data.get(k) for k in required)
 
 # === Final Start Function ===
-
 def main():
     logger.info("Starting bot...")
     run_all_bots()
-    telegram_app.run_polling()
+
+    port = int(os.getenv("PORT", 8443))
+    webhook_url = os.getenv("WEBHOOK_URL")
+
+    telegram_app.run_webhook(
+        listen="0.0.0.0",
+        port=port,
+        url_path=os.getenv("BOT_TOKEN"),
+        webhook_url=f"{webhook_url}/{os.getenv('BOT_TOKEN')}"
+    )
 
 if __name__ == "__main__":
     main()
