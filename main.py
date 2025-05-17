@@ -359,6 +359,7 @@ autobot_thread.start()
 # === Run Bot ===
 # === WEBHOOK ENDPOINT ===
 WEBHOOK_PATH = "/webhook"  # Safer than exposing the token
+
 app=Flask(__name__)
 # === WEBHOOK ENDPOINT ===
 @app.route(WEBHOOK_PATH, methods=["POST"])
