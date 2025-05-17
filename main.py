@@ -19,6 +19,8 @@ logger = logging.getLogger("main")
 
 # === Firebase Initialization (from base64 JSON) ===
 try:
+# === Firebase Initialization (from base64 JSON) ===
+try:
     if not firebase_admin._apps:
         firebase_json_b64 = os.getenv("FIREBASE_CREDENTIALS")
         if not firebase_json_b64:
@@ -32,13 +34,13 @@ try:
         with open(firebase_cred_path, "w", encoding="utf-8") as f:
             f.write(firebase_json_str)
 
-        # Initialize Firebase with credentials AND Realtime Database URL
+        # Initialize Firebase (change 'databaseURL' if you're using Realtime DB)
         cred = credentials.Certificate(firebase_cred_path)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://YOUR-PROJECT-ID.firebaseio.com'  # Replace this
-        })
+        firebase_admin.initialize_app(cred)
 
-        logger.info("Firebase Realtime Database initialized successfully")
+        # Firestore client (for Firestore use)
+        db = firestore.client()
+        logger.info("Firebase initialized successfully")
 
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
