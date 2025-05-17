@@ -32,10 +32,10 @@ try:
         with open(firebase_cred_path, "w", encoding="utf-8") as f:
             f.write(firebase_json_str)
 
-        # Initialize Firebase with credentials AND databaseURL for Realtime Database
+        # Initialize Firebase with credentials AND Realtime Database URL
         cred = credentials.Certificate(firebase_cred_path)
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://YOUR-PROJECT-ID.firebaseio.com'  # Replace with your actual Realtime DB URL
+            'databaseURL': 'https://YOUR-PROJECT-ID.firebaseio.com'  # Replace this
         })
 
         logger.info("Firebase Realtime Database initialized successfully")
