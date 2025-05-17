@@ -358,7 +358,10 @@ autobot_thread.start()
 
 # === Run Bot ===
 # === WEBHOOK ENDPOINT ===
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+WEBHOOK_PATH = "/webhook"  # Safer than exposing the token
+
+# === WEBHOOK ENDPOINT ===
+@app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
     update = request.get_json()
     if "message" in update:
@@ -367,7 +370,7 @@ def webhook():
 
 # === SETUP WEBHOOK ON STARTUP ===
 def set_webhook():
-    webhook_url = f"https://your-app-name.fly.dev/{BOT_TOKEN}"  # Replace with your Fly.io app URL
+    webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev{WEBHOOK_PATH}"
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
     payload = {"url": webhook_url}
     res = requests.post(url, json=payload)
@@ -375,4 +378,5 @@ def set_webhook():
 
 if __name__ == "__main__":
     set_webhook()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
