@@ -364,9 +364,10 @@ app=Flask(__name__)
 # === WEBHOOK ENDPOINT ===
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
-    update = request.get_json()
-    if "message" in update:
-        threading.Thread(target=handle_command, args=(update["message"],)).start()
+    update_json = request.get_json(force=True)
+    update = Update.de_json(update_json, telegram_app.bot)
+    # Schedule the update to be processed asynchronously
+    asyncio.create_task(telegram_app.process_update(update))
     return "ok"
 
 # === SETUP WEBHOOK ON STARTUP ===
