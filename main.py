@@ -18,9 +18,9 @@ logger = logging.getLogger("main")
 # === Firebase Initialization (from base64 JSON) ===
 try:
     if not firebase_admin._apps:
-        firebase_json_b64 = os.getenv("FIREBASE_CREDENTIALS_JSON")
+        firebase_json_b64 = os.getenv("FIREBASE_CREDENTIALS")
         if not firebase_json_b64:
-            raise ValueError("FIREBASE_CREDENTIALS_JSON env var not set or empty")
+            raise ValueError("FIREBASE_CREDENTIALS env var not set or empty")
 
         # Decode base64 to UTF-8 JSON string
         firebase_json_str = base64.b64decode(firebase_json_b64).decode("utf-8")
@@ -42,9 +42,9 @@ except Exception as e:
     raise
 
 # === Telegram Bot Setup ===
-telegram_token = os.getenv("BOT_TOKEN")
+telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
 if not telegram_token:
-    raise ValueError("BOT_TOKEN environment variable not set")
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
 
 telegram_app = Application.builder().token(telegram_token).build()
 logger.info("Telegram bot initialized successfully")
