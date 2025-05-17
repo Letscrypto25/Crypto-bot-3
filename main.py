@@ -372,7 +372,7 @@ def webhook():
 # === SETUP WEBHOOK ON STARTUP ===
 def set_webhook():
     webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev{WEBHOOK_PATH}"
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
     payload = {"url": webhook_url}
     res = requests.post(url, json=payload)
     print("Webhook set:", res.text)
