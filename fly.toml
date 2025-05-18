@@ -4,14 +4,14 @@
 [env]
   FLY_APP_NAME = "crypto-bot-3-white-wind-424"
   REDIS_URL = "redis://default:3fb87281db1b4ca38a98efad70b37e8e@fly-crypto-bot-redis.upstash.io:6379"
-
+  PORT = "8080"
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #app = 'crypto-bot-redis'
 app = "crypto-bot-redis"
 primary_region = "jnb"
 
 [[services]]
-  internal_port = 6379
+  internal_port = 8080
   protocol = "tcp"
   processes = ["app"]
 
@@ -28,11 +28,7 @@ primary_region = "jnb"
 
 [processes]
   app = "python main.py"
-  worker = "celery -A celery_worker.py --loglevel=info"
-
-[env]
-  PORT = "8080"
-  REDIS_URL = "redis://default:redispw@fly-crypto-bot-redis.internal:6379"
+  worker = "celery -A celery_worker worker --loglevel=info"
 
 [[vm]]
   memory = "1gb"
