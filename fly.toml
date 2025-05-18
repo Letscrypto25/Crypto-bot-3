@@ -26,3 +26,7 @@ primary_region = "jnb"
 
 [experimental]
   auto_rollback = true
+
+ [processes]
+  app = "python main.py"
+  worker = "celery -A celery_worker.py --loglevel=info"
