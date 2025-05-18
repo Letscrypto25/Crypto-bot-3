@@ -11,3 +11,7 @@ fastapi
 python-dotenv
 uvicorn
 sentry-sdk
+Flask==2.3.3
+celery==5.3.4
+redis==5.0.4
+requests
