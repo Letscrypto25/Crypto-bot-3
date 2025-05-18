@@ -103,7 +103,9 @@ def get_luno_auth(user_data):
     return HTTPBasicAuth(user_data['api_key'], user_data['api_secret'])
 
 # === Telegram Commands ===
-
+def handle_update(update):
+    print("Handling update:", update)
+    # Your Telegram command parsing logic here
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Welcome to the Crypto Bot! Use /help for available commands.")
 
