@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 app = "crypto-bot-3-white-wind-424"
 primary_region = "jnb"
 
@@ -10,12 +11,24 @@ primary_region = "jnb"
 [http_service]
   internal_port = 8080
   force_https = true
+=======
+
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#app = 'crypto-bot-redis'
+app = "crypto-bot-redis"
+primary_region = "jnb"
+
+[build]
+  image = "flyio/redis"
+>>>>>>> a007cdc (Save local changes to fly.toml)
 
 [[services]]
-  internal_port = 8080
+  internal_port = 6379
   protocol = "tcp"
+  processes = ["app"]
 
   [[services.ports]]
+<<<<<<< HEAD
     port = 80
     handlers = ["http"]
 
@@ -25,3 +38,12 @@ primary_region = "jnb"
 
 [experimental]
   auto_rollback = true
+=======
+    port = 6379
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+>>>>>>> a007cdc (Save local changes to fly.toml)
