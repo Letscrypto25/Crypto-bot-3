@@ -1,3 +1,4 @@
+import os
 from celery import Celery
 from telegram import Update
 from telegram_app import telegram_app  # import the bot object properly
