@@ -20,9 +20,10 @@ from firebase_admin import credentials, db
 
 # Telegram
 from telegram import Update
+from telegram_app import telegram_app
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
-
+from tasks import process_update_task
 # Exchange clients
 from binance.client import Client as BinanceClient
 
@@ -98,7 +99,18 @@ def update_leaderboard(user_id, profit):
     previous = current.get(str(user_id), 0)
     current[str(user_id)] = previous + profit
     ref.set(current)
+#===celery===#
+celery = Celery(
+    "tasks",
+    broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
+)
 
+@celery.task(name="tasks.process_update_task")
+def process_update_task(update_json):
+    update = Update.de_json(update_json, telegram_app.bot)
+    telegram_app.process_update(update)
+    
 # === Telegram Bot Initialization ===
 telegram_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 logger.info("Telegram bot initialized successfully")
@@ -408,8 +420,7 @@ def set_webhook():
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
     res = requests.post(url, json={"url": webhook_url})
     print("Webhook set:", res.text)
-
+set_webhook()
 if __name__ == "__main__":
-    set_webhook()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
