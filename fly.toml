@@ -8,8 +8,7 @@ primary_region = "jnb"
 
 [env]
   # Add your Redis URL environment variable to connect your bot to Redis
-  REDIS_URL = "redis://default:<your-redis-password>@fly-crypto-bot-redis.upstash.io:6379"
-
+  REDIS_URL = "redis://default:3fb87281db1b4ca38a98efad70b37e8e@fly-crypto-bot-redis.upstash.io:6379"
 [http_service]
   internal_port = 8080
   force_https = true
