@@ -1,5 +1,6 @@
 from flask import Flask, request
 from tasks import process_update_task
+import redis
 import os
 import base64
 import logging
@@ -50,6 +51,16 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Firebase: {e}")
     raise
+
+redis_url = "redis://default:3fb87281db1b4ca38a98efad70b37e8e@fly-crypto-bot-redis.upstash.io:6379"
+r = redis.from_url(redis_url)
+
+# Optional: test connection
+try:
+    r.ping()
+    print("Redis connected successfully.")
+except redis.exceptions.ConnectionError as e:
+    print("Redis connection failed:", e)
 
 # === Firebase DB Reference ===
 def get_user_ref(user_id):
