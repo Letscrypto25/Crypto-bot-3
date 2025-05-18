@@ -5,6 +5,7 @@ primary_region = "jnb"
   dockerfile = "./Dockerfile"
 
 [env]
+  FLY_APP_NAME = "crypto-bot-3-white-wind-424"
   REDIS_URL = "redis://default:3fb87281db1b4ca38a98efad70b37e8e@fly-crypto-bot-redis.upstash.io:6379"
 
 [http_service]
