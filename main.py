@@ -384,7 +384,7 @@ def webhook():
     return "ok"
 
 def set_webhook():
-    webhook_url = f"https://{os.getenv('FLY_APP_NAME')}.fly.dev{WEBHOOK_PATH}"
+    webhook_url = "https://{os.getenv('FLY_APP_NAME')}.fly.dev{WEBHOOK_PATH}"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
     res = requests.post(url, json={"url": webhook_url})
     print("Webhook set:", res.text)
