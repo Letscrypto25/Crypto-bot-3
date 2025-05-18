@@ -25,11 +25,16 @@ primary_region = "jnb"
 
 [experimental]
   auto_rollback = true
-    port = 6379
+
+[processes]
+  app = "python main.py"
+  worker = "celery -A celery_worker.py --loglevel=info"
+
+[env]
+  PORT = "8080"
+  REDIS_URL = "redis://default:redispw@fly-crypto-bot-redis.internal:6379"
 
 [[vm]]
   memory = "1gb"
   cpu_kind = "shared"
   cpus = 1
-
-
