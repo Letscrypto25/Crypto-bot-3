@@ -1,4 +1,4 @@
-quart==0.19.4
+
 werkzeug==3.0.1
 python-telegram-bot==20.7
 firebase-admin==6.4.0
