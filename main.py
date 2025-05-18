@@ -1,26 +1,35 @@
 from flask import Flask, request
 from tasks import process_update_task
-from celery imprt Celery
-import redis
+# Standard library
 import os
+import time
 import base64
 import logging
-import time
 import threading
-import requests
 from datetime import datetime
-from dotenv import load_dotenv
+
+# Third-party libraries
+from flask import Flask, request
+from celery import Celery
+import redis
+import requests
 from requests.auth import HTTPBasicAuth
+from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, db
+
+# Telegram
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
-# === Exchange API clients ===
+
+# Exchange clients
 from binance.client import Client as BinanceClient
 
+# Internal modules
+from tasks import process_update_task
+from dotenv import load_dotenv
 load_dotenv()
-
 # === Logging Setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
