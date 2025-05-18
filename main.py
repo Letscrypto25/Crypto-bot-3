@@ -28,7 +28,8 @@ from binance.client import Client as BinanceClient
 
 # Internal modules
 from tasks import process_update_task
-
+from dotenv import load_dotenv
+load_dotenv()
 # === Logging Setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
