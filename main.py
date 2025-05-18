@@ -1,5 +1,6 @@
 from flask import Flask, request
 from tasks import process_update_task
+from celery imprt Celery
 import redis
 import os
 import base64
@@ -368,6 +369,14 @@ telegram_app.add_handler(CommandHandler("autobot_config", autobot_config))
 autobot_thread = threading.Thread(target=autobot_loop, daemon=True)
 autobot_thread.start()
 
+def make_celery(app_name=__name__):
+    return Celery(
+        app_name,
+        broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    )
+
+celery_app = make_celery()
 # === Run Bot ===
 # === WEBHOOK ENDPOINT ===
 WEBHOOK_PATH = "/webhook"  # Safer than exposing the token
@@ -384,7 +393,7 @@ def webhook():
     return "ok"
 
 def set_webhook():
-    webhook_url = "https://{os.getenv('FLY_APP_NAME')}.fly.dev{WEBHOOK_PATH}"
+    webhook_url = f"https://{os.getenv('FLY_APP_NAME')}.fly.dev{WEBHOOK_PATH}"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
     res = requests.post(url, json={"url": webhook_url})
     print("Webhook set:", res.text)
