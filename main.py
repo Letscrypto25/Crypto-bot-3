@@ -1,5 +1,5 @@
 from flask import Flask, request
-import asyncio
+from tasks import process_update_task
 import os
 import base64
 import logging
@@ -361,22 +361,21 @@ autobot_thread.start()
 # === WEBHOOK ENDPOINT ===
 WEBHOOK_PATH = "/webhook"  # Safer than exposing the token
 
-app=Flask(__name__)
-# === WEBHOOK ENDPOINT ===
+app = Flask(__name__)
+
+WEBHOOK_PATH = "/webhook"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
     update_json = request.get_json(force=True)
-    update = Update.de_json(update_json, telegram_app.bot)
-    # Schedule the update to be processed asynchronously
-    asyncio.create_task(telegram_app.process_update(update))
+    process_update_task.delay(update_json)  # Send to Celery
     return "ok"
 
-# === SETUP WEBHOOK ON STARTUP ===
 def set_webhook():
-    webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev{WEBHOOK_PATH}"
+    webhook_url = f"https://{os.getenv('FLY_APP_NAME')}.fly.dev{WEBHOOK_PATH}"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
-    payload = {"url": webhook_url}
-    res = requests.post(url, json=payload)
+    res = requests.post(url, json={"url": webhook_url})
     print("Webhook set:", res.text)
 
 if __name__ == "__main__":
