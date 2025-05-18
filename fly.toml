@@ -1,20 +1,32 @@
-app = "crypto-bot-3"
+app = "crypto-bot-3-white-wind-424"  # change to your bot's Fly app name
+primary_region = "jnb"
+
+[build]
+  # Use your app's Dockerfile or build method here
+  # For example, if you have a Dockerfile:
+  dockerfile = "./Dockerfile"
 
 [env]
-PORT = "8080"
+  # Add your Redis URL environment variable to connect your bot to Redis
+  REDIS_URL = "redis://default:<your-redis-password>@fly-crypto-bot-redis.upstash.io:6379"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+[mounts]
+  # If you have volumes needed, add here
+  # source = "data"
+  # destination = "/data"
 
 [[services]]
   internal_port = 8080
   protocol = "tcp"
 
   [[services.ports]]
-    handlers = ["http"]
     port = 80
+    handlers = ["http"]
 
   [[services.ports]]
-    handlers = ["tls", "http"]
     port = 443
-
-  [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
+    handlers = ["tls", "http"]
