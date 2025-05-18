@@ -1,13 +1,9 @@
-"
-
 [build]
   dockerfile = "./Dockerfile"
 
 [env]
   FLY_APP_NAME = "crypto-bot-3-white-wind-424"
   REDIS_URL = "redis://default:3fb87281db1b4ca38a98efad70b37e8e@fly-crypto-bot-redis.upstash.io:6379"
-
-=======
 
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #app = 'crypto-bot-redis'
