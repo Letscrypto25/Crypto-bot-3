@@ -1,5 +1,6 @@
 from flask import Flask, request
 from tasks import process_update_task
+from telegram.ext import ContextTypes
 # Standard library
 import os
 import time
