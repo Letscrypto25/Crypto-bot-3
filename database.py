@@ -18,7 +18,7 @@ if not os.path.exists("firebase_credentials.json"):
 if not firebase_admin._apps:
     cred = credentials.Certificate("firebase_credentials.json")
     firebase_admin.initialize_app(cred, {
-        'databaseURL': 'firebase-adminsdk-fbsvc@crypto-bot-3.iam.gserviceaccount.com'  # Replace this with your actual database URL
+        'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'  # Replace this with your actual database URL
     })
 
 firebase_ref = db.reference("users")
