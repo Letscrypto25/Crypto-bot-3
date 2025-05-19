@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import base64
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from firebase_admin import credentials, initialize_app, db
 from utils import get_env, send_telegram_message, is_valid_user
 from tasks import run_auto_bot_task
@@ -15,17 +15,17 @@ logger = logging.getLogger(__name__)
 # Flask app
 app = Flask(__name__)
 
-# Telegram secrets
+# Load secrets
 BOT_TOKEN = get_env("TELEGRAM_BOT_TOKEN")
 USER_ID = int(get_env("TELEGRAM_USER_ID"))
+FIREBASE_ENCODED = get_env("FIREBASE_CREDENTIALS_ENCODED")
 
 # Firebase setup
-encoded_creds = get_env("FIREBASE_CREDENTIALS_ENCODED")
-decoded = base64.b64decode(encoded_creds)
+decoded = base64.b64decode(FIREBASE_ENCODED)
 creds_dict = json.loads(decoded)
 cred = credentials.Certificate(creds_dict)
 firebase_app = initialize_app(cred, {
-    'databaseURL': 'https://{}.firebaseio.com'.format(creds_dict['project_id'])
+    'databaseURL': f'https://{creds_dict["project_id"]}.firebaseio.com'
 })
 db_root = db.reference("/")
 
@@ -34,7 +34,7 @@ CELERY_BROKER = get_env("REDIS_URL", "redis://localhost:6379/0")
 celery = Celery(__name__, broker=CELERY_BROKER)
 celery.conf.update(result_backend=CELERY_BROKER)
 
-# Flask secret
+# Flask secret key
 app.secret_key = get_env("FLASK_SECRET_KEY", "change-this-please")
 
 # Telegram webhook route
@@ -55,7 +55,7 @@ def telegram_webhook():
             send_telegram_message(chat_id, "Access denied.")
             return jsonify({"ok": True})
 
-        # Handle user command
+        # Command handler
         response = handle_command(text, user_id=user_id)
         send_telegram_message(chat_id, response)
 
@@ -64,19 +64,19 @@ def telegram_webhook():
         send_telegram_message(USER_ID, f"Bot error: {e}")
 
     return jsonify({"ok": True})
-    
-# Health check route
+
+# Health check
 @app.route("/", methods=["GET"])
 def health_check():
     return jsonify({"status": "ok"}), 200
 
-# Trigger the auto bot manually from a Telegram command
+# Manually trigger bot task
 @app.route("/start_bot", methods=["GET"])
 def start_bot_route():
     run_auto_bot_task.delay()
     return jsonify({"status": "bot started"}), 200
 
-# Manual trigger via POST (optionally with payload)
+# POST trigger
 @app.route("/trigger", methods=["POST"])
 def trigger_task():
     try:
@@ -130,7 +130,7 @@ def test_celery():
         logger.error("Celery test error: %s", e)
         return jsonify({"error": str(e)}), 500
 
-# Deployment hint
+# AI Plugin manifest
 @app.route("/.well-known/ai-plugin.json", methods=["GET"])
 def plugin_manifest():
     return jsonify({
@@ -145,8 +145,8 @@ def plugin_manifest():
         "contact_email": "support@yourdomain.com",
         "legal_info_url": "https://yourdomain.com/legal"
     })
-    
-# Load OpenAPI spec file for plugin (if exists)
+
+# Serve OpenAPI spec
 @app.route("/openapi.yaml", methods=["GET"])
 def openapi_spec():
     try:
@@ -155,7 +155,7 @@ def openapi_spec():
         logger.error("OpenAPI spec not found: %s", e)
         return jsonify({"error": "OpenAPI spec not found"}), 404
 
-# Serve static files (like logo)
+# Serve static files
 @app.route("/static/<path:filename>", methods=["GET"])
 def static_files(filename):
     try:
@@ -165,4 +165,4 @@ def static_files(filename):
         return jsonify({"error": "Static file not found"}), 404
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)), debug=True)
