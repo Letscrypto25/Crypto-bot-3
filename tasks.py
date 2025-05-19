@@ -19,7 +19,7 @@ telegram_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
 # Initialize Firebase Admin SDK once
 if not firebase_admin._apps:
-    cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
+    cred = credentials.Certificate(FIREBASE_CREDENTIALS_ENCODED)
     firebase_admin.initialize_app(cred, {
         'databaseURL': FIREBASE_DATABASE_URL
     })
