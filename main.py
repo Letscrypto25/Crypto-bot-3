@@ -20,7 +20,7 @@ BOT_TOKEN = get_env("TELEGRAM_BOT_TOKEN")
 USER_ID = int(get_env("TELEGRAM_USER_ID"))
 
 # Firebase setup
-encoded_creds = get_env("FIREBASE_ENCODED")
+encoded_creds = get_env("FIREBASE_CREDENTIALS_ENCODED")
 decoded = base64.b64decode(encoded_creds)
 creds_dict = json.loads(decoded)
 cred = credentials.Certificate(creds_dict)
