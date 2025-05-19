@@ -20,7 +20,7 @@ from firebase_admin import credentials, db
 
 # Telegram
 from telegram import Update
-from commands import telegram_app
+from commands import help_command, start_command
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
 from tasks import process_update_task
