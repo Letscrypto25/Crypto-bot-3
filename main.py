@@ -403,7 +403,7 @@ def make_celery(app_name=__name__):
 celery_app = make_celery()
 # === Run Bot ===
 # === WEBHOOK ENDPOINT ===
-WEBHOOK_PATH = "/webhook/{TELEGRAM_BOT_TOKEN}"# Safer than exposing the token
+WEBHOOK_PATH = f"/webhook/{TELEGRAM_BOT_TOKEN}"# Safer than exposing the token
 
 app = Flask(__name__)
 
@@ -417,7 +417,7 @@ def webhook():
     return "ok"
 
 def set_webhook():
-    webhook_url = f"https://{os.getenv('FLY_APP_NAME')}.fly.dev{WEBHOOK_PATH}"
+    webhook_url = f"https://{os.getenv('FLY_APP_NAME')}.fly.dev/webhook/{TELEGRAM_BOT_TOKEN}"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
     res = requests.post(url, json={"url": webhook_url})
     print("Webhook set:", res.text)
