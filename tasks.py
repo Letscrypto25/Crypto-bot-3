@@ -8,7 +8,7 @@ from firebase_admin import credentials, db
 # Load env variables
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH")
+FIREBASE_CREDENTIALS_ENCODED= os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 FIREBASE_DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL")
 
 # Initialize Celery
