@@ -1,22 +1,11 @@
-# handlers.py
-from telegram import Update
-from telegram.ext import ContextTypes
 
-help_text = (
-    "Commands:\n"
-    "/start - Welcome message\n"
-    "/help - List of commands\n"
-    "/register <exchange> <api_key> <api_secret> - Register your API keys\n"
-    "/balance - Show your current balance\n"
-    "/trade <BUY/SELL> <symbol> <amount> - Execute a trade\n"
-    "/leaderboard - Show top traders\n"
-    "/autobot enable|disable - Enable or disable auto trading\n"
-    "/autobot config <key> <value> - Configure auto bot parameters\n"
-)
+from telegram.ext import Application, CommandHandler
+from command import help_command, start_command  # import your handlers
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome! Use /help to see available commands.")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(help_text)
+telegram_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+telegram_app.add_handler(CommandHandler("start", start_command))
+telegram_app.add_handler(CommandHandler("help", help_command))
 
