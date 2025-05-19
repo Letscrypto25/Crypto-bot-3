@@ -4,7 +4,6 @@ import logging
 import base64
 from flask import Flask, request, jsonify
 from firebase_admin import credentials, initialize_app, db
-from commands import handle_command
 from utils import get_env, send_telegram_message, is_valid_user
 from tasks import run_auto_bot_task
 from celery import Celery
