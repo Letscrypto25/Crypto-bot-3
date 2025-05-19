@@ -84,15 +84,16 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"{action} {amount} {symbol} at {price} — Executed")
 
     try:
-    except Exception as e:
-        logger.exception("Trade error")
-        await update.message.reply_text(f"Trade failed: {e}")
-        else:
-            update.message.reply_text("You need to verify your account with /start before using this bot.")
-    except Exception as e:
-        print(f"Error in /autobot command: {e}")
-        update.message.reply_text("An error occurred while starting the autobot.")
-
+    # Your main code here
+    # for example, check if user exists
+        if user:
+        # do something
+        await update.message.reply_text("Trade executed")
+    else:
+        await update.message.reply_text("You need to verify your account with /start before using this bot.")
+except Exception as e:
+    logger.exception("Trade error")
+    await update.message.reply_text(f"Trade failed: {e}")
 def stop_autobot(update: Update, context: CallbackContext) -> None:
     try:
         user_id = str(update.effective_user.id)
