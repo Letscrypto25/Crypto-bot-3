@@ -1,5 +1,3 @@
-from flask import Flask, request
-from tasks import process_update_task
 from telegram.ext import ContextTypes
 # Standard library
 import os
@@ -30,7 +28,6 @@ from binance.client import Client as BinanceClient
 
 # Internal modules
 from tasks import process_update_task
-from dotenv import load_dotenv
 load_dotenv()
 
 
