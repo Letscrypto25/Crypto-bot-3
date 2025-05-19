@@ -403,7 +403,7 @@ def make_celery(app_name=__name__):
 celery_app = make_celery()
 # === Run Bot ===
 # === WEBHOOK ENDPOINT ===
-WEBHOOK_PATH = "/webhook"  # Safer than exposing the token
+WEBHOOK_PATH = "/webhook/{TELEGRAM_BOT_TOKEN}"# Safer than exposing the token
 
 app = Flask(__name__)
 
