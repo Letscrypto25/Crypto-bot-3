@@ -32,6 +32,7 @@ from binance.client import Client as BinanceClient
 from tasks import process_update_task
 from dotenv import load_dotenv
 load_dotenv()
+telegram_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 # === Logging Setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
