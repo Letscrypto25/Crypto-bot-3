@@ -1,6 +1,6 @@
 
 from telegram.ext import Application, CommandHandler
-from command import help_command, start_command  # import your handlers
+from commands import help_command, start_command  # import your handlers
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
