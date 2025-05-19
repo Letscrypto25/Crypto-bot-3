@@ -29,22 +29,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(help_text)
 
 # /trade
-async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    user_data = get_user_data(user_id)
-
-    if 'exchange' not in user_data:
-        await update.message.reply_text("You're not registered. Use /register first.")
-        return
-
+async def execute_trade(update: Update, context: CallbackContext, user_data: dict, action: str, symbol: str, amount: float) -> None:
     try:
-        action, symbol, amount = context.args[0].upper(), context.args[1].upper(), float(context.args[2])
-    except (IndexError, ValueError):
-        await update.message.reply_text("Usage: /trade <BUY/SELL> <SYMBOL> <AMOUNT>")
-        return
-
-    try:
+        user_id = str(update.effective_user.id)
         price = None
+
         if user_data['exchange'] == 'binance':
             client = get_binance_client(user_data)
             if action == "BUY":
@@ -60,12 +49,18 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
             market = symbol.lower()
             url = "https://api.luno.com/api/1/marketorder"
             side = "BUY" if action == "BUY" else "SELL"
-            data = {"pair": market, "type": side.lower(), "counter_volume": str(amount)}
+            data = {
+                "pair": market,
+                "type": side.lower(),
+                "counter_volume": str(amount)
+            }
             resp = requests.post(url, auth=get_luno_auth(user_data), data=data)
             result = resp.json()
+
             if resp.status_code != 200:
                 await update.message.reply_text(f"Luno API error: {result.get('error_message', resp.text)}")
                 return
+
             price = result.get("average_price") or "unknown"
 
         else:
@@ -79,21 +74,14 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "price": price,
             "timestamp": datetime.utcnow().isoformat()
         }
-        save_trade(user_id, trade_record)
 
+        save_trade(user_id, trade_record)
         await update.message.reply_text(f"{action} {amount} {symbol} at {price} — Executed")
 
-    try:
-    # Your main code here
-    # for example, check if user exists
-        if user:
-        # do something
-            await update.message.reply_text("Trade executed")
-        else:
-            await update.message.reply_text("You need to verify your account with /start before using this bot.")
-except Exception as e:
-    logger.exception("Trade error")
-    await update.message.reply_text(f"Trade failed: {e}")
+    except Exception as e:
+        logger.exception("Trade error")
+        await update.message.reply_text(f"Trade failed: {e}")
+        
 def stop_autobot(update: Update, context: CallbackContext) -> None:
     try:
         user_id = str(update.effective_user.id)
