@@ -88,9 +88,9 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # for example, check if user exists
         if user:
         # do something
-        await update.message.reply_text("Trade executed")
-    else:
-        await update.message.reply_text("You need to verify your account with /start before using this bot.")
+            await update.message.reply_text("Trade executed")
+        else:
+            await update.message.reply_text("You need to verify your account with /start before using this bot.")
 except Exception as e:
     logger.exception("Trade error")
     await update.message.reply_text(f"Trade failed: {e}")
