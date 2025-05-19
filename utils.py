@@ -1,32 +1,34 @@
 import json
 import base64
+import os
 import requests
 import firebase_admin
 from firebase_admin import credentials, db
 from binance.client import Client as BinanceClient
-
-FIREBASE_CREDENTIALS_ENCODED = "fb64.txt"
-TELEGRAM_API_URL = "https://api.telegram.org/bot"
-LEADERBOARD_PATH = "/leaderboard"
-TRADES_PATH = "/trades"
-USERS_PATH = "/users"
+import time
+import uuid
+from datetime import datetime
 
 # === Firebase Setup ===
 def init_firebase():
     if not firebase_admin._apps:
-        with open(FIREBASE_CRED_FILE, "r") as f:
-            encoded = f.read()
+        encoded = os.environ.get("FIREBASE_CREDENTIALS_ENCODED")
+        db_url = os.environ.get("FIREBASE_DATABASE_URL")
+        if not encoded or not db_url:
+            raise ValueError("Missing Firebase secrets")
         decoded = base64.b64decode(encoded)
         cred = credentials.Certificate(json.loads(decoded))
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': 'FIREBASE_DATABASE_URL'
-        })
+        firebase_admin.initialize_app(cred, {'databaseURL': db_url})
 
 init_firebase()
 
 # === Telegram Messaging ===
+TELEGRAM_API_URL = "https://api.telegram.org/bot"
+
 def send_telegram_message(chat_id, text):
-    token = get_bot_token()
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        raise ValueError("Missing TELEGRAM_BOT_TOKEN")
     url = f"{TELEGRAM_API_URL}{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
     try:
@@ -36,26 +38,22 @@ def send_telegram_message(chat_id, text):
         print(f"Telegram send error: {e}")
         return False
 
-def get_bot_token():
-    # Load from env or store as plain text for now
-    with open("bot_token.txt") as f:
-        return f.read().strip()
-
 # === Firebase User/Trade ===
+USERS_PATH = "/users"
+TRADES_PATH = "/trades"
+LEADERBOARD_PATH = "/leaderboard"
+
 def get_user_data(user_id):
-    ref = db.reference(f"{USERS_PATH}/{user_id}")
-    return ref.get() or {}
+    return db.reference(f"{USERS_PATH}/{user_id}").get() or {}
 
 def update_user_data(user_id, data):
-    ref = db.reference(f"{USERS_PATH}/{user_id}")
-    ref.update(data)
+    db.reference(f"{USERS_PATH}/{user_id}").update(data)
 
 def get_trades_ref():
     return db.reference(TRADES_PATH)
 
 def save_trade(user_id, trade_data):
-    ref = get_trades_ref().child(user_id)
-    ref.push(trade_data)
+    get_trades_ref().child(user_id).push(trade_data)
 
 # === Binance ===
 def get_binance_client(user_id):
@@ -78,34 +76,26 @@ def update_leaderboard(user_id, profit):
     total = (current or 0) + profit
     ref.set(round(total, 2))
 
-import time
-import uuid
-from datetime import datetime
-
 # === Price Helpers ===
 def get_binance_price(symbol="BTCUSDT"):
     try:
-        response = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": symbol})
-        data = response.json()
-        return float(data['price'])
+        r = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": symbol})
+        return float(r.json()['price'])
     except Exception as e:
-        print(f"Price fetch error: {e}")
+        print(f"Binance price error: {e}")
         return None
 
 def get_luno_price(pair="XBTZAR"):
     try:
-        response = requests.get(f"https://api.luno.com/api/1/ticker?pair={pair}")
-        data = response.json()
-        return float(data['last_trade'])
+        r = requests.get(f"https://api.luno.com/api/1/ticker?pair={pair}")
+        return float(r.json()['last_trade'])
     except Exception as e:
-        print(f"Luno price fetch error: {e}")
+        print(f"Luno price error: {e}")
         return None
 
 # === Profit & Stats ===
 def calculate_profit(entry, exit, amount, fees=0):
-    gross = (exit - entry) * amount
-    net = gross - fees
-    return round(net, 2)
+    return round((exit - entry) * amount - fees, 2)
 
 def percentage_change(old, new):
     try:
@@ -138,5 +128,3 @@ def is_float(value):
         return True
     except ValueError:
         return False
-
-
