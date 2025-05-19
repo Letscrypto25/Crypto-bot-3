@@ -46,3 +46,6 @@ def get_trades_ref():
 # Get user info (used in commands.py)
 def get_user(user_id):
     return db.reference(f'users/{user_id}').get()
+
+def get_all_users():
+    return db.reference('users').get()
