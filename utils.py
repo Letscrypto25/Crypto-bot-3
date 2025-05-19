@@ -5,7 +5,7 @@ import firebase_admin
 from firebase_admin import credentials, db
 from binance.client import Client as BinanceClient
 
-FIREBASE_CRED_FILE = "firebase_encoded.txt"
+FIREBASE_CREDENTIALS_ENCODED = "fb64.txt"
 TELEGRAM_API_URL = "https://api.telegram.org/bot"
 LEADERBOARD_PATH = "/leaderboard"
 TRADES_PATH = "/trades"
@@ -19,7 +19,7 @@ def init_firebase():
         decoded = base64.b64decode(encoded)
         cred = credentials.Certificate(json.loads(decoded))
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://your-firebase-db.firebaseio.com/'
+            'databaseURL': 'FIREBASE_DATABASE_URL'
         })
 
 init_firebase()
