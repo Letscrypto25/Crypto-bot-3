@@ -83,6 +83,7 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(f"{action} {amount} {symbol} at {price} — Executed")
 
+    try:
     except Exception as e:
         logger.exception("Trade error")
         await update.message.reply_text(f"Trade failed: {e}")
