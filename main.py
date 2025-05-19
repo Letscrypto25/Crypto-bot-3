@@ -4,7 +4,7 @@ import logging
 import base64
 from flask import Flask, request, jsonify, send_file
 from firebase_admin import credentials, initialize_app, db
-from utils import get_env, send_telegram_message, is_valid_user
+from utils import send_telegram_message, is_valid_user
 from tasks import run_auto_bot_task
 from celery import Celery
 
@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 # Flask app
 app = Flask(__name__)
 
-# Load secrets
-BOT_TOKEN = get_env("TELEGRAM_BOT_TOKEN")
-USER_ID = int(get_env("TELEGRAM_USER_ID"))
-FIREBASE_ENCODED = get_env("FIREBASE_CREDENTIALS_ENCODED")
+# Load secrets directly from environment variables
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+USER_ID = int(os.environ.get("TELEGRAM_USER_ID"))
+FIREBASE_ENCODED = os.environ.get("FIREBASE_CREDENTIALS_ENCODED")
 
 # Firebase setup
 decoded = base64.b64decode(FIREBASE_ENCODED)
@@ -30,12 +30,12 @@ firebase_app = initialize_app(cred, {
 db_root = db.reference("/")
 
 # Celery config
-CELERY_BROKER = get_env("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 celery = Celery(__name__, broker=CELERY_BROKER)
 celery.conf.update(result_backend=CELERY_BROKER)
 
 # Flask secret key
-app.secret_key = get_env("FLASK_SECRET_KEY", "change-this-please")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-please")
 
 # Telegram webhook route
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
