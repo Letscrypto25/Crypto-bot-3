@@ -55,19 +55,13 @@ CELERY_BROKER = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 celery = Celery(__name__, broker=CELERY_BROKER)
 celery.conf.update(result_backend=CELERY_BROKER)
 
-# Flask secret key (for sessions etc)
+# Flask secret key
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-please")
 
-# --- Helper: Command handler stub ---
+# --- Command handler logic ---
 def handle_command(text, user_id):
-    """
-    Your command handler logic here.
-    Return a string response to send back to user.
-    """
-    # Example simple command handling
     if not text:
         return "No command received."
-
     text = text.strip().lower()
     if text == "/start":
         return "Welcome! Bot is up and running."
@@ -81,7 +75,7 @@ def handle_command(text, user_id):
     else:
         return f"Unknown command: {text}"
 
-# --- Telegram Webhook route ---
+# --- Telegram Webhook ---
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
 def telegram_webhook():
     try:
@@ -105,23 +99,20 @@ def telegram_webhook():
 
     except Exception as e:
         logger.exception("Error processing webhook update")
-        # Notify admin/user about the error
         send_telegram_message(USER_ID, f"Bot error: {e}")
 
     return jsonify({"ok": True})
 
-# --- Health check endpoint ---
+# --- App Routes ---
 @app.route("/", methods=["GET"])
 def health_check():
     return jsonify({"status": "ok"}), 200
 
-# --- Start bot task endpoint (trigger Celery task manually) ---
 @app.route("/start_bot", methods=["GET"])
 def start_bot_route():
     run_auto_bot_task.delay()
     return jsonify({"status": "bot started"}), 200
 
-# --- Manual trigger via POST with optional data ---
 @app.route("/trigger", methods=["POST"])
 def trigger_task():
     try:
@@ -132,7 +123,6 @@ def trigger_task():
         logger.error(f"Trigger task error: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Firebase test endpoints ---
 @app.route("/test_write", methods=["GET"])
 def test_write():
     try:
@@ -155,7 +145,6 @@ def test_read():
         logger.error(f"Firebase read failed: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Send test Telegram message ---
 @app.route("/send_test", methods=["GET"])
 def send_test_message():
     try:
@@ -165,7 +154,6 @@ def send_test_message():
         logger.error(f"Send test message failed: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Celery test endpoint ---
 @app.route("/test_celery", methods=["GET"])
 def test_celery():
     try:
@@ -175,7 +163,6 @@ def test_celery():
         logger.error(f"Celery test error: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- AI Plugin manifest endpoint ---
 @app.route("/.well-known/ai-plugin.json", methods=["GET"])
 def plugin_manifest():
     return jsonify({
@@ -191,7 +178,6 @@ def plugin_manifest():
         "legal_info_url": "https://yourdomain.com/legal"
     })
 
-# --- Serve OpenAPI spec ---
 @app.route("/openapi.yaml", methods=["GET"])
 def openapi_spec():
     try:
@@ -200,7 +186,6 @@ def openapi_spec():
         logger.error(f"OpenAPI spec not found: {e}")
         return jsonify({"error": "OpenAPI spec not found"}), 404
 
-# --- Serve static files ---
 @app.route("/static/<path:filename>", methods=["GET"])
 def static_files(filename):
     try:
@@ -209,11 +194,7 @@ def static_files(filename):
         logger.error(f"Static file not found: {e}")
         return jsonify({"error": "Static file not found"}), 404
 
-# --- App entrypoint ---
 if __name__ == "__main__":
-    # For local dev/testing:
-    # Use PORT env var or default 8080
-    # Debug True for dev only! Disable in prod
     port = int(os.getenv("PORT", 8080))
     debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     app.run(host="0.0.0.0", port=port, debug=debug_mode)
