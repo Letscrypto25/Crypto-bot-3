@@ -20,7 +20,13 @@ logger = logging.getLogger(__name__)
 
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome! Use /register to begin.")
+    user_id = str(update.message.from_user.id)
+    firebase_ref.child(user_id).update({
+        "first_name": update.message.from_user.first_name,
+        "active": False,
+        "autobot": False
+    })
+    await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
 
 
 # /help
@@ -219,6 +225,7 @@ def show_config(update: Update, context: CallbackContext):
                 f"Platform: {user_data.get('platform', 'Not set')}\n"
                 f"Strategy: {user_data.get('strategy', 'Not set')}\n"
                 f"Trade Amount: ${user_data.get('trade_amount', 'Not set')}\n"
+                f"Autobot: {'Enabled' if user_data.get('autobot', False) else 'Disabled'}\n"
                 f"Status: {'Running' if user_data.get('active', False) else 'Stopped'}"
             )
             update.message.reply_text(config_msg)
@@ -227,3 +234,6 @@ def show_config(update: Update, context: CallbackContext):
     except Exception as e:
         logger.exception("show_config error")
         update.message.reply_text("Error fetching config.")
+
+
+
