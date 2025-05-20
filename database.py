@@ -48,7 +48,8 @@ def create_user(user_id, default_data=None):
 
 def update_user_data(user_id, data):
     db.reference(f'users/{user_id}').update(data)
-
+def get_user_data(user_id):
+    return db.reference(f'users/{user_id}').get()
 # === Balance ===
 def set_balance(user_id, amount):
     db.reference(f'users/{user_id}/balance').set(amount)
