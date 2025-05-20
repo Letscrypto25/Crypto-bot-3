@@ -55,7 +55,7 @@ celery = Celery(__name__, broker=CELERY_BROKER)
 celery.conf.update(result_backend=CELERY_BROKER)
 
 # Flask secret key (for sessions etc)
-app.secret_key = os.environ.get("SECRET_KEY", "change-this-please")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-please")
 
 def is_registered(user_id):
     """Check if user is registered in Firebase DB."""
