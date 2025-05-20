@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from binance.client import Client as BinanceClient
 from firebase_admin import db
-from database import get_user_data
+from database import get_user
 
 # === Telegram Messaging ===
 TELEGRAM_API_URL = "https://api.telegram.org/bot"
