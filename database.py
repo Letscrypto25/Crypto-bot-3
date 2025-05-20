@@ -23,7 +23,7 @@ if not firebase_admin._apps:
 firebase_ref = db.reference("users")
 
 # === User Management ===
-def get_user_data(user_id):
+def get_user(user_id):
     return db.reference(f'users/{user_id}').get()
 
 def get_all_users():
