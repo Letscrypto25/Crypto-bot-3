@@ -25,12 +25,14 @@ FIREBASE_ENCODED = os.environ.get("FIREBASE_CREDENTIALS_ENCODED")
 decoded = base64.b64decode(FIREBASE_ENCODED)
 creds_dict = json.loads(decoded)
 cred = credentials.Certificate(creds_dict)
-if not firebase_admin._apps:
+
+try:
+    firebase_app = firebase_admin.get_app()
+except ValueError:
     firebase_app = initialize_app(cred, {
         'databaseURL': f'https://{creds_dict["project_id"]}.firebaseio.com'
     })
-else:
-    firebase_app = firebase_admin.get_app()
+    
 db_root = db.reference("/")
 
 # Celery config
