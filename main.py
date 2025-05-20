@@ -249,4 +249,4 @@ def static_files(filename):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
-    app.run(host="0.0.0.0", port=port, debug=debug_mode)import os
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)
