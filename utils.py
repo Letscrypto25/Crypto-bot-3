@@ -2,31 +2,12 @@ import json
 import base64
 import os
 import requests
-import firebase_admin
-from firebase_admin import credentials, db
-from binance.client import Client as BinanceClient
 import time
 import uuid
 from datetime import datetime
-
-# === Firebase Setup ===
-def init_firebase():
-    if not firebase_admin._apps:
-        encoded = os.environ.get("FIREBASE_CREDENTIALS_ENCODED")
-        db_url = os.environ.get("FIREBASE_DATABASE_URL")
-        if not encoded or not db_url:
-            raise ValueError("Missing Firebase credentials or database URL environment variables")
-        try:
-            decoded = base64.b64decode(encoded)
-            creds_json = json.loads(decoded)
-            cred = credentials.Certificate(creds_json)
-            firebase_admin.initialize_app(cred, {'databaseURL': db_url})
-            print("Firebase initialized successfully")
-        except Exception as e:
-            print(f"Error initializing Firebase: {e}")
-            raise
-
-init_firebase()
+from binance.client import Client as BinanceClient
+from firebase_admin import db
+from database import get_user_data
 
 # === Telegram Messaging ===
 TELEGRAM_API_URL = "https://api.telegram.org/bot"
@@ -45,32 +26,27 @@ def send_telegram_message(chat_id, text):
         print(f"Telegram send error: {e}")
         return False
 
-# === Firebase User/Trade ===
-USERS_PATH = "/users"
-TRADES_PATH = "/trades"
-LEADERBOARD_PATH = "/leaderboard"
-
-def get_user_data(user_id):
-    try:
-        return db.reference(f"{USERS_PATH}/{user_id}").get() or {}
-    except Exception as e:
-        print(f"Error getting user data for {user_id}: {e}")
-        return {}
-
+# === Firebase ===
 def update_user_data(user_id, data):
     try:
-        db.reference(f"{USERS_PATH}/{user_id}").update(data)
+        db.reference(f"users/{user_id}").update(data)
     except Exception as e:
-        print(f"Error updating user data for {user_id}: {e}")
-
-def get_trades_ref():
-    return db.reference(TRADES_PATH)
+        print(f"Error updating user {user_id}: {e}")
 
 def save_trade(user_id, trade_data):
     try:
-        get_trades_ref().child(user_id).push(trade_data)
+        db.reference(f"trades/{user_id}").push(trade_data)
     except Exception as e:
         print(f"Error saving trade for {user_id}: {e}")
+
+def update_leaderboard(user_id, profit):
+    try:
+        ref = db.reference(f"leaderboard/{user_id}")
+        current = ref.get() or 0
+        total = round(current + profit, 2)
+        ref.set(total)
+    except Exception as e:
+        print(f"Leaderboard update error: {e}")
 
 # === Binance ===
 def get_binance_client(user_id):
@@ -86,16 +62,6 @@ def get_luno_auth(user_id):
     user = get_user_data(user_id)
     return user.get("luno_key"), user.get("luno_secret")
 
-# === Leaderboard ===
-def update_leaderboard(user_id, profit):
-    try:
-        ref = db.reference(f"{LEADERBOARD_PATH}/{user_id}")
-        current = ref.get() or 0
-        total = current + profit
-        ref.set(round(total, 2))
-    except Exception as e:
-        print(f"Error updating leaderboard for {user_id}: {e}")
-
 # === Price Helpers ===
 def get_binance_price(symbol="BTCUSDT"):
     try:
@@ -103,7 +69,7 @@ def get_binance_price(symbol="BTCUSDT"):
         r.raise_for_status()
         return float(r.json()['price'])
     except Exception as e:
-        print(f"Binance price error: {e}")
+        print(f"Binance price fetch error: {e}")
         return None
 
 def get_luno_price(pair="XBTZAR"):
@@ -112,7 +78,7 @@ def get_luno_price(pair="XBTZAR"):
         r.raise_for_status()
         return float(r.json()['last_trade'])
     except Exception as e:
-        print(f"Luno price error: {e}")
+        print(f"Luno price fetch error: {e}")
         return None
 
 # === Profit & Stats ===
