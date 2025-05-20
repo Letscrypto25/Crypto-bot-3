@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import base64
+import firebase_admin
 from flask import Flask, request, jsonify, send_file
 from firebase_admin import credentials, initialize_app, db
 from utils import send_telegram_message, is_valid_user
