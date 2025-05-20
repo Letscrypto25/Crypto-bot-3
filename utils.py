@@ -161,3 +161,7 @@ def is_float(value):
         return True
     except (ValueError, TypeError):
         return False
+
+# === Auth ===
+def is_valid_user(user_id):
+    return bool(get_user_data(user_id))
