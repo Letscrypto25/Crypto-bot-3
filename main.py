@@ -4,6 +4,7 @@ import logging
 import base64
 from flask import Flask, request, jsonify, send_file
 import firebase_admin
+from datetime import datetime
 from firebase_admin import credentials, initialize_app, db
 from celery import Celery
 from utils import send_telegram_message  # Make sure this handles sending msgs via Telegram API
@@ -88,9 +89,9 @@ def handle_command(text, user_id):
         if not is_registered(user_id):
             # Collect minimal user info for registration
             user_info = {
-                "id": user_id,
-                "joined_at": int(request.date.timestamp()) if hasattr(request, "date") else None,
-            }
+    "id": user_id,
+    "joined_at": int(datetime.utcnow().timestamp()),
+}
             register_user(user_id, user_info)
             return "Welcome to Let'sCrypto! Chill and explore the commands whenever you're ready."
         else:
