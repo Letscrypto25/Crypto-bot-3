@@ -1,32 +1,34 @@
 import os
+import asyncio
 from celery import Celery
 from telegram import Update
 from telegram.ext import Application
 import firebase_admin
 from firebase_admin import credentials, db
 
-# Load env variables
+# Load environment variables
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-FIREBASE_CREDENTIALS_ENCODED= os.getenv("FIREBASE_CREDENTIALS_ENCODED")
+FIREBASE_CREDENTIALS_ENCODED = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 FIREBASE_DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL")
 
 # Initialize Celery
 celery_app = Celery("tasks", broker=REDIS_URL, backend=REDIS_URL)
 
-# Initialize Telegram Application
+# Initialize Telegram bot
 telegram_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-# Initialize Firebase Admin SDK once
+# Firebase init
 if not firebase_admin._apps:
     cred = credentials.Certificate(FIREBASE_CREDENTIALS_ENCODED)
     firebase_admin.initialize_app(cred, {
         'databaseURL': FIREBASE_DATABASE_URL
     })
 
+
 @celery_app.task(name="tasks.send_telegram_message")
 def send_telegram_message(text, chat_id=None):
-    """Send message to Telegram user or channel."""
+    """Send message to Telegram."""
     chat = chat_id or os.getenv("TELEGRAM_CHAT_ID")
     if not chat:
         print("No chat_id provided or set in env TELEGRAM_CHAT_ID")
@@ -35,13 +37,14 @@ def send_telegram_message(text, chat_id=None):
     async def send():
         await telegram_app.bot.send_message(chat_id=chat, text=text)
 
-    import asyncio
     asyncio.run(send())
+
 
 @celery_app.task(name="tasks.process_update_task")
 def process_update_task(update_json):
     update = Update.de_json(update_json, telegram_app.bot)
     telegram_app.process_update(update)
+
 
 @celery_app.task(name="tasks.update_leaderboard")
 def update_leaderboard():
@@ -62,14 +65,51 @@ def update_leaderboard():
     message = f"Leaderboard Updated! Top trader: {top_user_id} with profit {top_data.get('profit', 0)}"
     send_telegram_message.delay(message)
 
+
 @celery_app.task(name="tasks.start_trading_bot")
 def start_trading_bot(bot_id):
     db.reference(f'bots/{bot_id}/status').set('running')
     print(f"Trading bot {bot_id} started")
     send_telegram_message.delay(f"Trading bot {bot_id} has started.")
 
+
 @celery_app.task(name="tasks.stop_trading_bot")
 def stop_trading_bot(bot_id):
     db.reference(f'bots/{bot_id}/status').set('stopped')
     print(f"Trading bot {bot_id} stopped")
     send_telegram_message.delay(f"Trading bot {bot_id} has stopped.")
+
+
+@celery_app.task(name="tasks.run_auto_bot_task")
+def run_auto_bot_task():
+    """Loop through all bots and simulate trading logic for running ones."""
+    print("Running auto bot task...")
+
+    bots_ref = db.reference('bots')
+    all_bots = bots_ref.get()
+
+    if not all_bots:
+        print("No bots found in Firebase.")
+        return
+
+    for bot_id, bot_data in all_bots.items():
+        status = bot_data.get('status')
+        if status != 'running':
+            continue
+
+        # Simulate trading logic
+        print(f"Running bot logic for {bot_id}...")
+
+        # Example: simulate a profit gain and update stats
+        profit_gain = 10  # Simulated value
+        user_id = bot_data.get('user_id')
+
+        if user_id:
+            stats_ref = db.reference(f'user_stats/{user_id}')
+            current_stats = stats_ref.get() or {}
+            current_profit = current_stats.get('profit', 0)
+            new_profit = current_profit + profit_gain
+            stats_ref.update({'profit': new_profit})
+            print(f"Updated profit for user {user_id}: {new_profit}")
+
+    print("Auto bot task completed.")
