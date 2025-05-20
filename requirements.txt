@@ -1,17 +1,31 @@
+# Web frameworks and app servers
+fastapi                          # Optional, only if you're using FastAPI anywhere
+Flask==2.3.3                     # Used if you're serving via Flask (e.g., webhook)
+hypercorn[quart]==0.16.0        # Async ASGI server (not mandatory unless using Quart)
 
-werkzeug==3.0.1
-python-telegram-bot==20.7
-firebase-admin==6.4.0
-hypercorn[quart]==0.16.0
-python-binance==1.0.17
-httpx==0.25.2
-luno-python==0.0.10
-cryptography==38.0.1
-fastapi
-python-dotenv
-uvicorn
-sentry-sdk
-Flask==2.3.3
+# Task Queue
 celery==5.3.4
-redis==5.0.4
-requests
+redis==5.0.4                    # Celery broker and result backend
+
+# Telegram Bot
+python-telegram-bot==20.7       # Required for Telegram interaction
+
+# Firebase
+firebase-admin==6.4.0           # Realtime Database and Admin SDK
+
+# Binance & Luno Clients
+python-binance==1.0.17          # Binance client
+luno-python==0.0.10             # Luno client (older version, but works)
+
+# HTTP requests & networking
+httpx==0.25.2                   # Async HTTP client (optional unless used explicitly)
+requests                        # Basic HTTP client (used by many libraries)
+
+# Cryptography & security
+cryptography==38.0.1           # Required by Firebase SDK and others
+sentry-sdk                      # Optional if using Sentry for error logging
+
+# Environment and utilities
+python-dotenv                  # To load .env files
+werkzeug==3.0.1                # Flask dependency, included for compatibility
+uvicorn                        # ASGI server (only needed if you run FastAPI/async app)
