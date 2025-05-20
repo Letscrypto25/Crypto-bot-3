@@ -7,7 +7,8 @@ from firebase_admin import credentials, initialize_app, db
 from utils import send_telegram_message, is_valid_user
 from tasks import run_auto_bot_task
 from celery import Celery
-
+from tasks import run_auto_bot_task
+# then use: run_auto_bot_task.delay()
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
