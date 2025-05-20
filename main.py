@@ -1,175 +1,70 @@
-import os
-import json
 import logging
-import base64
-import firebase_admin
-from flask import Flask, request, jsonify, send_file
-from firebase_admin import credentials, initialize_app, db
-from utils import send_telegram_message, is_valid_user
-from tasks import run_auto_bot_task
-from celery import Celery
-from tasks import run_auto_bot_task
-# then use: run_auto_bot_task.delay()
-# Logging setup
-logging.basicConfig(level=logging.INFO)
+import os
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes,
+    MessageHandler, filters
+)
+from firebase_admin import credentials, initialize_app
+
+import commands  # Your commands.py module
+from database import initialize_firebase
+
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Flask app
-app = Flask(__name__)
-
-# Load secrets directly from environment variables
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-USER_ID = int(os.environ.get("TELEGRAM_USER_ID"))
-FIREBASE_ENCODED = os.environ.get("FIREBASE_CREDENTIALS_ENCODED")
-
-# Firebase setup
-decoded = base64.b64decode(FIREBASE_ENCODED)
-creds_dict = json.loads(decoded)
-cred = credentials.Certificate(creds_dict)
-
-try:
-    firebase_app = firebase_admin.get_app()
-except ValueError:
-    firebase_app = initialize_app(cred, {
-        'databaseURL': f'https://{creds_dict["project_id"]}.firebaseio.com'
-    })
-    
-db_root = db.reference("/")
-
-# Celery config
-CELERY_BROKER = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-celery = Celery(__name__, broker=CELERY_BROKER)
-celery.conf.update(result_backend=CELERY_BROKER)
-
-# Flask secret key
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-please")
-
-# Telegram webhook route
-@app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-def telegram_webhook():
+# Initialize Firebase before starting the bot
+def setup_firebase():
+    # Use your Firebase service account key JSON path
+    cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH", "path/to/serviceAccountKey.json")
     try:
-        data = request.get_json()
-        logger.info("Update received: %s", json.dumps(data))
-
-        if "message" not in data:
-            return jsonify({"ok": True})
-
-        chat_id = data["message"]["chat"]["id"]
-        user_id = data["message"]["from"]["id"]
-        text = data["message"].get("text", "")
-
-        if not is_valid_user(user_id):
-            send_telegram_message(chat_id, "Access denied.")
-            return jsonify({"ok": True})
-
-        # Command handler
-        response = handle_command(text, user_id=user_id)
-        send_telegram_message(chat_id, response)
-
+        cred = credentials.Certificate(cred_path)
+        initialize_app(cred)
+        initialize_firebase()  # Your custom database.py setup if needed
+        logger.info("Firebase initialized successfully.")
     except Exception as e:
-        logger.exception("Error in webhook")
-        send_telegram_message(USER_ID, f"Bot error: {e}")
+        logger.error(f"Failed to initialize Firebase: {e}")
+        raise e
 
-    return jsonify({"ok": True})
 
-# Health check
-@app.route("/", methods=["GET"])
-def health_check():
-    return jsonify({"status": "ok"}), 200
+async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Sorry, I didn't understand that command. Use /help to see available commands.")
 
-# Manually trigger bot task
-@app.route("/start_bot", methods=["GET"])
-def start_bot_route():
-    run_auto_bot_task.delay()
-    return jsonify({"status": "bot started"}), 200
 
-# POST trigger
-@app.route("/trigger", methods=["POST"])
-def trigger_task():
-    try:
-        content = request.json or {}
-        run_auto_bot_task.delay(content)
-        return jsonify({"status": "manual trigger received"}), 202
-    except Exception as e:
-        logger.error("Trigger task error: %s", e)
-        return jsonify({"error": str(e)}), 500
+def main():
+    # Load Telegram token from env variable or replace here
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
 
-# Firebase write test
-@app.route("/test_write", methods=["GET"])
-def test_write():
-    try:
-        test_data = {
-            "timestamp": db.SERVER_TIMESTAMP,
-            "message": "Test write from Flask"
-        }
-        db_root.child("test_node").push(test_data)
-        return jsonify({"success": True}), 200
-    except Exception as e:
-        logger.error("Firebase write failed: %s", e)
-        return jsonify({"error": str(e)}), 500
+    setup_firebase()
 
-# Firebase read test
-@app.route("/test_read", methods=["GET"])
-def test_read():
-    try:
-        result = db_root.child("test_node").get()
-        return jsonify({"data": result}), 200
-    except Exception as e:
-        logger.error("Firebase read failed: %s", e)
-        return jsonify({"error": str(e)}), 500
+    # Create bot application
+    app = ApplicationBuilder().token(token).build()
 
-# Telegram send test
-@app.route("/send_test", methods=["GET"])
-def send_test_message():
-    try:
-        send_telegram_message(USER_ID, "Test message from /send_test endpoint.")
-        return jsonify({"sent": True}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    # Register command handlers
+    app.add_handler(CommandHandler("start", commands.start))
+    app.add_handler(CommandHandler("help", commands.help_command))
+    app.add_handler(CommandHandler("register", commands.register))
+    app.add_handler(CommandHandler("balance", commands.balance))
+    app.add_handler(CommandHandler("trade", commands.trade))
+    app.add_handler(CommandHandler("autobot", commands.autobot))
+    app.add_handler(CommandHandler("autobot_config", commands.autobot_config))
+    app.add_handler(CommandHandler("leaderboard", commands.get_leaderboard))
+    app.add_handler(CommandHandler("setplatform", commands.set_platform))
+    app.add_handler(CommandHandler("setstrategy", commands.set_strategy))
+    app.add_handler(CommandHandler("setamount", commands.set_amount))
+    app.add_handler(CommandHandler("showconfig", commands.show_config))
+    app.add_handler(CommandHandler("setbase", commands.set_base))
+    app.add_handler(CommandHandler("stopautobot", commands.stop_autobot))
 
-# Celery task test
-@app.route("/test_celery", methods=["GET"])
-def test_celery():
-    try:
-        run_auto_bot_task.delay({"source": "manual_test"})
-        return jsonify({"status": "celery triggered"}), 200
-    except Exception as e:
-        logger.error("Celery test error: %s", e)
-        return jsonify({"error": str(e)}), 500
+    # Unknown command handler
+    app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
-# AI Plugin manifest
-@app.route("/.well-known/ai-plugin.json", methods=["GET"])
-def plugin_manifest():
-    return jsonify({
-        "schema_version": "v1",
-        "name_for_model": "crypto_trading_bot",
-        "name_for_human": "Crypto Trading Bot",
-        "description_for_model": "Bot to trade and monitor Binance and Luno.",
-        "description_for_human": "Trade monitoring and automation for Binance & Luno.",
-        "auth": {"type": "none"},
-        "api": {"type": "openapi", "url": "/openapi.yaml"},
-        "logo_url": "/static/logo.png",
-        "contact_email": "support@yourdomain.com",
-        "legal_info_url": "https://yourdomain.com/legal"
-    })
+    logger.info("Bot started polling...")
+    app.run_polling()
 
-# Serve OpenAPI spec
-@app.route("/openapi.yaml", methods=["GET"])
-def openapi_spec():
-    try:
-        return send_file("openapi.yaml")
-    except Exception as e:
-        logger.error("OpenAPI spec not found: %s", e)
-        return jsonify({"error": "OpenAPI spec not found"}), 404
-
-# Serve static files
-@app.route("/static/<path:filename>", methods=["GET"])
-def static_files(filename):
-    try:
-        return send_file(f"static/{filename}")
-    except Exception as e:
-        logger.error("Static file not found: %s", e)
-        return jsonify({"error": "Static file not found"}), 404
-
-if __name__ == "__main__":
+    main()if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)), debug=True)
