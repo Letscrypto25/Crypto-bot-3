@@ -30,6 +30,7 @@ if not firebase_admin._apps:
         'databaseURL': FIREBASE_DATABASE_URL
     })
 
+
 # Task: Send Telegram Message
 @celery_app.task(name="tasks.send_telegram_message")
 def send_telegram_message(text, chat_id=None):
@@ -43,11 +44,13 @@ def send_telegram_message(text, chat_id=None):
 
     asyncio.run(send())
 
+
 # Task: Process Telegram Update
 @celery_app.task(name="tasks.process_update_task")
 def process_update_task(update_json):
     update = Update.de_json(update_json, telegram_app.bot)
     telegram_app.process_update(update)
+
 
 # Task: Update Leaderboard
 @celery_app.task(name="tasks.update_leaderboard")
@@ -58,15 +61,16 @@ def update_leaderboard():
         print("No user stats found for leaderboard")
         return
 
-    leaderboard = sorted(all_stats.items(), key=lambda x: x[1].get('profit', 0), reverse=True)
+    leaderboard = sorted(all_stats.items(), key=lambda x: float(x[1].get('profit', 0) or 0), reverse=True)
     top10 = leaderboard[:10]
     leaderboard_ref = db.reference('leaderboard')
     leaderboard_ref.set({user_id: data for user_id, data in top10})
 
     if top10:
         top_user_id, top_data = top10[0]
-        message = f"Leaderboard Updated! Top trader: {top_user_id} with profit ${top_data.get('profit', 0):.2f}"
+        message = f"Leaderboard Updated! Top trader: {top_user_id} with profit ${float(top_data.get('profit', 0) or 0):.2f}"
         send_telegram_message.delay(message)
+
 
 # Task: Start Bot
 @celery_app.task(name="tasks.start_trading_bot")
@@ -75,12 +79,14 @@ def start_trading_bot(bot_id):
     print(f"Trading bot {bot_id} started")
     send_telegram_message.delay(f"Trading bot {bot_id} has started.")
 
+
 # Task: Stop Bot
 @celery_app.task(name="tasks.stop_trading_bot")
 def stop_trading_bot(bot_id):
     db.reference(f'bots/{bot_id}/status').set('stopped')
     print(f"Trading bot {bot_id} stopped")
     send_telegram_message.delay(f"Trading bot {bot_id} has stopped.")
+
 
 # Task: Run Auto Bot Logic
 @celery_app.task(name="tasks.run_auto_bot_task")
@@ -95,39 +101,44 @@ def run_auto_bot_task():
         if bot_data.get('status') != 'running':
             continue
 
-        exchange = bot_data.get('exchange')
-        api_key = bot_data.get('api_key')
-        api_secret = bot_data.get('api_secret')
-        symbol = bot_data.get('symbol', 'BTCUSDT')
-        amount = float(bot_data.get('amount', 10))
-        user_id = bot_data.get('user_id')
-
         try:
+            exchange = bot_data.get('exchange')
+            api_key = bot_data.get('api_key')
+            api_secret = bot_data.get('api_secret')
+            symbol = bot_data.get('symbol', 'BTCUSDT')
+            amount_raw = bot_data.get('amount')
+            amount = float(amount_raw) if amount_raw not in (None, '') else 10.0
+            user_id = bot_data.get('user_id')
+
+            profit = 0.0
+
             if exchange == 'binance':
                 client = BinanceClient(api_key, api_secret)
                 price = float(client.get_symbol_ticker(symbol=symbol)['price'])
                 qty = round(amount / price, 6)
                 order = client.order_market_buy(symbol=symbol, quantity=qty)
-                cost = sum(float(fill['price']) * float(fill['qty']) for fill in order['fills'])
+                cost = sum(float(fill['price']) * float(fill['qty']) for fill in order.get('fills', []))
                 profit = cost - amount
 
             elif exchange == 'luno':
                 client = LunoClient(api_key_id=api_key, api_key_secret=api_secret)
                 ticker = client.get_ticker(pair=symbol.lower())
-                price = float(ticker['ask'])
+                price = float(ticker.get('ask') or 0)
                 order = client.post_market_order(pair=symbol.lower(), type='BUY', counter_volume=str(amount))
-                counter = float(order['counter'])
-                base = float(order['base'])
+                counter = float(order.get('counter') or 0)
+                base = float(order.get('base') or 0)
                 profit = counter - amount
 
             else:
+                print(f"Unsupported exchange: {exchange}")
                 continue
 
-            # Update Firebase stats
+            # Update user stats
             if user_id:
                 stats_ref = db.reference(f'user_stats/{user_id}')
                 current_stats = stats_ref.get() or {}
-                new_profit = float(current_stats.get('profit', 0)) + profit
+                existing_profit = float(current_stats.get('profit') or 0)
+                new_profit = existing_profit + profit
                 stats_ref.update({'profit': round(new_profit, 2)})
 
         except Exception as e:
