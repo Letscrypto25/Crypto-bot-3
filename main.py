@@ -41,7 +41,7 @@ try:
         firebase_app = firebase_admin.get_app()
     except ValueError:
         firebase_app = initialize_app(cred, {
-            'databaseURL': f'https://{creds_dict["project_id"]}.firebaseio.com'
+            'databaseURL': f'https://Crypto-bot-3.firebaseio.com'
         })
     db_root = db.reference("/")
     logger.info("Firebase initialized successfully.")
@@ -55,7 +55,7 @@ celery = Celery(__name__, broker=CELERY_BROKER)
 celery.conf.update(result_backend=CELERY_BROKER)
 
 # Flask secret key (for sessions etc)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-please")
+app.secret_key = os.environ.get("SECRET_KEY", "change-this-please")
 
 def is_registered(user_id):
     """Check if user is registered in Firebase DB."""
