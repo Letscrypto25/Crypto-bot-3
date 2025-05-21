@@ -1,12 +1,10 @@
-import time
 import logging
 from firebase_admin import db
-from trading_api import trade_on_binance, trade_on_luno
+from importlib import import_module
 
 logger = logging.getLogger(__name__)
 
 def get_users_with_api_keys():
-    """Fetch all users with API keys stored in Firebase."""
     try:
         users_ref = db.reference("/users")
         users_data = users_ref.get()
@@ -15,13 +13,14 @@ def get_users_with_api_keys():
 
         valid_users = []
         for user_id, data in users_data.items():
-            if "binance_api_key" in data and "luno_api_key" in data:
+            if "binance_api_key" in data and "luno_api_key" in data and "strategy" in data:
                 valid_users.append({
                     "user_id": user_id,
                     "binance_api_key": data["binance_api_key"],
                     "binance_api_secret": data["binance_api_secret"],
                     "luno_api_key": data["luno_api_key"],
                     "luno_api_secret": data["luno_api_secret"],
+                    "strategy": data["strategy"]
                 })
 
         return valid_users
@@ -30,18 +29,17 @@ def get_users_with_api_keys():
         return []
 
 def run_auto_bot():
-    """Run auto bot for all registered users with valid API keys."""
     users = get_users_with_api_keys()
-    logger.info(f"Running auto bot for {len(users)} users")
+    logger.info(f"Running bot for {len(users)} users")
 
     for user in users:
-        logger.info(f"Running trades for user {user['user_id']}")
+        strategy_name = user.get("strategy", "spread_arbitrage").strip()
+        logger.info(f"Running strategy '{strategy_name}' for user {user['user_id']}")
         try:
-            binance_result = trade_on_binance(user)
-            luno_result = trade_on_luno(user)
-            logger.info(f"User {user['user_id']} Binance result: {binance_result}")
-            logger.info(f"User {user['user_id']} Luno result: {luno_result}")
+            strategy_module = import_module(f"strategies.{strategy_name}")
+            result = strategy_module.run_strategy(user)
+            logger.info(f"User {user['user_id']} result: {result}")
+        except ModuleNotFoundError:
+            logger.error(f"Strategy module '{strategy_name}' not found for user {user['user_id']}")
         except Exception as e:
-            logger.error(f"Trade failed for user {user['user_id']}: {e}")
-
-    logger.info("Auto bot cycle complete.")
+            logger.error(f"Strategy failed for user {user['user_id']}: {e}")
