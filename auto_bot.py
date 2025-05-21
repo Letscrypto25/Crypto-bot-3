@@ -25,21 +25,20 @@ def get_users_with_api_keys():
 
         return valid_users
     except Exception as e:
-        logger.error(f"Error fetching users with API keys: {e}")
+        logger.error(f"Error fetching users: {e}")
         return []
 
 def run_auto_bot():
     users = get_users_with_api_keys()
-    logger.info(f"Running bot for {len(users)} users")
+    logger.info(f"Running auto bot for {len(users)} users")
 
     for user in users:
-        strategy_name = user.get("strategy", "spread_arbitrage").strip()
-        logger.info(f"Running strategy '{strategy_name}' for user {user['user_id']}")
+        logger.info(f"User: {user['user_id']} | Strategy: {user['strategy']}")
+
         try:
-            strategy_module = import_module(f"strategies.{strategy_name}")
-            result = strategy_module.run_strategy(user)
-            logger.info(f"User {user['user_id']} result: {result}")
+            strategy_module = import_module(f"strategies.{user['strategy']}")
+            strategy_module.execute(user)
         except ModuleNotFoundError:
-            logger.error(f"Strategy module '{strategy_name}' not found for user {user['user_id']}")
+            logger.error(f"Strategy {user['strategy']} not found for user {user['user_id']}")
         except Exception as e:
-            logger.error(f"Strategy failed for user {user['user_id']}: {e}")
+            logger.error(f"Strategy error for user {user['user_id']}: {e}")
