@@ -1,4 +1,13 @@
-import os import json import logging import base64 from flask import Flask, request, jsonify, send_file import firebase_admin from datetime import datetime from firebase_admin import credentials, initialize_app, db from celery import Celery from utils import send_telegram_message  # Make sure this handles sending msgs via Telegram API from exchange import get_binance_prices, get_luno_prices  # Assumes your exchange API logic is modular
+import os 
+import json 
+import logging 
+import base64 
+from flask import Flask, request, jsonify, send_file 
+import firebase_admin from datetime 
+import datetime from firebase_admin 
+import credentials, initialize_app, db from celery 
+import Celery from utils 
+import send_telegram_message  # Make sure this handles sending msgs via Telegram API from exchange import get_binance_prices, get_luno_prices  # Assumes your exchange API logic is modular
 
 Setup logging
 
