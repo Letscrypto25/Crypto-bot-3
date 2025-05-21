@@ -5,7 +5,6 @@ from firebase_admin import db
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-
 def get_users_with_api_keys():
     """Fetch all users with API keys and strategy info from Firebase."""
     try:
@@ -26,6 +25,7 @@ def get_users_with_api_keys():
                     "binance_api_secret": data["binance_api_secret"],
                     "luno_api_key": data["luno_api_key"],
                     "luno_api_secret": data["luno_api_secret"],
+                    "strategy_config": data.get("strategy_config", {})
                 })
 
         return valid_users
@@ -33,21 +33,20 @@ def get_users_with_api_keys():
         logger.error(f"Error fetching users with API keys: {e}")
         return []
 
-
 def run_auto_bot():
     """Run auto bot for all registered users with valid strategy and API keys."""
     users = get_users_with_api_keys()
     logger.info(f"Running auto bot for {len(users)} users")
 
     for user in users:
-        logger.info(f"Running strategy for user {user['user_id']} using '{user['strategy']}'")
+        logger.info(f"[{user['user_id']}] Running strategy '{user['strategy']}'")
 
         try:
             strategy_module = import_module(f"strategies.{user['strategy']}")
-            strategy_module.run_strategy(user)
+            strategy_module.execute(user)
         except ModuleNotFoundError:
-            logger.error(f"Strategy '{user['strategy']}' not found for user {user['user_id']}")
+            logger.error(f"[{user['user_id']}] Strategy '{user['strategy']}' not found")
         except Exception as e:
-            logger.error(f"Error while executing strategy for user {user['user_id']}: {e}")
+            logger.error(f"[{user['user_id']}] Error executing strategy: {e}")
 
     logger.info("Auto bot cycle complete.")
