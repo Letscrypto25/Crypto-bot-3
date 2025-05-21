@@ -1,5 +1,5 @@
 import time
-from auto_trader import auto_trade_logic
+from trading_api import trading_api_logic
 
 if __name__ == "__main__":
     while True:
