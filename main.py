@@ -4,10 +4,10 @@ import os
 import firebase_admin
 from firebase_admin import credentials, db
 from flask import Flask, request
-from utils import send_alert, send_message, format_trade_message
+from utils import send_alert, format_trade_message  # Fixed import
 from commands import handle_command
 from auto_bot import auto_bot_logic
-from database import get_user, get_autobot_status
+from database import get_user, get_autobot_status, create_user
 
 # === Load Secrets from Environment ===
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
@@ -41,9 +41,8 @@ def telegram_webhook():
 
     # === Handle New User ===
     if not user:
-        from database import create_user
         create_user(user_id)
-        send_message(chat_id, "Welcome! Your crypto bot profile has been created.")
+        send_alert("Welcome! Your crypto bot profile has been created.", chat_id)
         return {"ok": True}
 
     # === Handle Commands ===
@@ -51,10 +50,10 @@ def telegram_webhook():
         try:
             response = handle_command(text, user_id)
             if response:
-                send_message(chat_id, response)
+                send_alert(response, chat_id)
         except Exception as e:
             send_alert(f"Command error for user {user_id}: {e}")
-            send_message(chat_id, "Oops, there was an error handling your command.")
+            send_alert("Oops, there was an error handling your command.", chat_id)
         return {"ok": True}
 
     # === Run AutoBot Logic if Enabled ===
@@ -63,7 +62,7 @@ def telegram_webhook():
             auto_bot_logic(user_id)
     except Exception as e:
         send_alert(f"AutoBot error for {user_id}: {e}")
-        send_message(chat_id, "Error running AutoBot. Check your settings.")
+        send_alert("Error running AutoBot. Check your settings.", chat_id)
 
     return {"ok": True}
 
