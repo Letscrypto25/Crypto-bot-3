@@ -2,7 +2,7 @@ import os
 import base64
 import requests
 from binance.client import Client as BinanceClient
-
+from exchanges import get_binance_client, get_luno_auth
 # === Binance ===
 def get_binance_client():
     api_key = os.getenv("BINANCE_API_KEY")
