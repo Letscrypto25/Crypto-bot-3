@@ -28,7 +28,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
     await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
 
+def handle_command(message):
+    chat_id = message["message"]["chat"]["id"]
+    text = message["message"]["text"].lower()
 
+    if text == "/start":
+        send_telegram_message(chat_id, "Welcome! Your AutoBot is ready.")
+    elif text == "/status":
+        send_telegram_message(chat_id, "AutoBot is running!")
+    else:
+        send_telegram_message(chat_id, "Unknown command.")
 # /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
