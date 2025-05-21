@@ -12,7 +12,7 @@ from database import (
     get_user_data, update_user_data, save_trade,
     get_leaderboard_ref, get_trades_ref, get_user, get_all_users, firebase_ref
 )
-from exchanges import get_binance_client, get_luno_auth
+from exchanges import get_price
 from tasks import send_telegram_message, update_leaderboard
 
 logger = logging.getLogger(__name__)
