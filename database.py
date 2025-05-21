@@ -120,3 +120,7 @@ def delete_user(user_id):
 # === Leaderboard Reference (used by commands.py) ===
 def get_leaderboard_ref():
     return db.reference("leaderboard")
+
+# === Trades Reference (used by commands.py) ===
+def get_trades_ref():
+    return db.reference("trades")
