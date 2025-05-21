@@ -117,3 +117,6 @@ def delete_user(user_id):
     db.reference(f'users/{user_id}').delete()
     db.reference(f'trades/{user_id}').delete()
     db.reference(f'leaderboard/{user_id}').delete()
+# === Leaderboard Reference (used by commands.py) ===
+def get_leaderboard_ref():
+    return db.reference("leaderboard")
