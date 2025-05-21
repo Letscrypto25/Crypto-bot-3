@@ -6,7 +6,7 @@ from firebase_admin import credentials, db
 from flask import Flask, request
 from utils import send_alert, format_trade_message
 from commands import handle_command
-from auto_trader import auto_trade_logic
+from auto_bot import auto_bot_logic
 
 # Load secrets from environment
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
