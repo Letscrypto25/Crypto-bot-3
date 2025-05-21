@@ -50,6 +50,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # /trade
+# /trade
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     user_data = get_user_data(user_id)
@@ -67,34 +68,14 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        price = None
-        if user_data['exchange'] == 'binance':
-            client = get_binance_client(user_data)
-            if action == "BUY":
-                order = client.order_market_buy(symbol=symbol, quantity=amount)
-            elif action == "SELL":
-                order = client.order_market_sell(symbol=symbol, quantity=amount)
-            else:
-                await update.message.reply_text("Action must be BUY or SELL.")
-                return
-            price = order['fills'][0]['price']
+        exchange = user_data.get("exchange")
+        price = get_price(user_id=user_id, source=exchange, symbol=symbol)
 
-        elif user_data['exchange'] == 'luno':
-            market = symbol.lower()
-            side = "BUY" if action == "BUY" else "SELL"
-            url = "https://api.luno.com/api/1/marketorder"
-            data = {"pair": market, "type": side.lower(), "counter_volume": str(amount)}
-            resp = requests.post(url, auth=get_luno_auth(user_data), data=data)
-            result = resp.json()
-            if resp.status_code != 200:
-                await update.message.reply_text(f"Luno API error: {result.get('error_message', resp.text)}")
-                return
-            price = result.get("average_price", "unknown")
-
-        else:
-            await update.message.reply_text("Exchange not recognized.")
+        if not price:
+            await update.message.reply_text("Failed to fetch price.")
             return
 
+        # Simulated order execution
         trade_record = {
             "symbol": symbol,
             "amount": amount,
