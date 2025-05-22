@@ -18,6 +18,11 @@ firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
 bot_token = os.getenv("TELEGRAM_BOT_TOKEN")  # Use env var
 
+if not bot_token:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable is missing!")
+
+print(f"[INFO] Bot token loaded: {bot_token[:10]}...")  # partial print for safety
+
 # === Firebase Init ===
 if not firebase_admin._apps:
     decoded = base64.b64decode(firebase_encoded).decode("utf-8")
@@ -41,10 +46,12 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
 @app.route("/webhook/<token>", methods=["POST"])
 def telegram_webhook(token):
     if token != bot_token:
+        print(f"[WARN] Invalid token in request: {token}")
         return {"ok": False, "error": "Unauthorized"}, 403
         
     data = request.get_json()
     if not data:
+        print("[WARN] Empty request received.")
         return {"ok": False}
 
     message = data.get("message", {})
