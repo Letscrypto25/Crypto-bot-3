@@ -4,16 +4,16 @@ import os
 import firebase_admin
 from firebase_admin import credentials, db
 from flask import Flask, request
-from utils import send_alert, format_trade_message  # Fixed import
+from utils import send_alert, format_trade_message
 from commands import handle_command
-from auto_bot import run_auto_bot 
+from auto_bot import run_auto_bot
 from database import get_user, get_autobot_status, create_user
-from datetime import datetime  # Added for logging
+from datetime import datetime
 
 # === Load Secrets from Environment ===
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
-bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+bot_token = "7874445351:AAHIV2C--GJkiJ-VCx435St9sRw70nERpMY"  # Hardcoded here for Flask route
 
 # === Firebase Init ===
 if not firebase_admin._apps:
@@ -36,7 +36,7 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-@app.route(f"/webhook/{bot_token}", methods=["POST"])
+@app.route("/webhook/7874445351:AAHIV2C--GJkiJ-VCx435St9sRw70nERpMY", methods=["POST"])
 def telegram_webhook():
     data = request.get_json()
     if not data:
