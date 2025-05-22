@@ -29,3 +29,4 @@ sentry-sdk                      # Optional if using Sentry for error logging
 python-dotenv                  # To load .env files
 werkzeug==3.0.1                # Flask dependency, included for compatibility
 uvicorn                        # ASGI server (only needed if you run FastAPI/async app)
+gunicorn
