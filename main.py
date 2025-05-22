@@ -6,7 +6,7 @@ from firebase_admin import credentials, db
 from flask import Flask, request
 from utils import send_alert, format_trade_message  # Fixed import
 from commands import handle_command
-from auto_bot import auto_bot_logic
+from auto_bot import run_auto_bot 
 from database import get_user, get_autobot_status, create_user
 
 # === Load Secrets from Environment ===
@@ -59,7 +59,7 @@ def telegram_webhook():
     # === Run AutoBot Logic if Enabled ===
     try:
         if get_autobot_status(user_id):
-            auto_bot_logic(user_id)
+            run_auto_bot(user_id)
     except Exception as e:
         send_alert(f"AutoBot error for {user_id}: {e}")
         send_alert("Error running AutoBot. Check your settings.", chat_id)
