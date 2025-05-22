@@ -37,7 +37,7 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
 
 @app.route("/webhook/<TELEGRAM_BOT_TOKEN>", methods=["POST"])
 def telegram_webhook(token):
-    if token != bot_token:
+    if token != TELEGRAM_BOT_TOKEN:
         return {"ok": False, "error": "Unauthorized"}, 403
 
     data = request.get_json()
