@@ -27,8 +27,9 @@ primary_region = "jnb"
 [experimental]
   auto_rollback = true
 
-[processes]
-  app = "python main.py"
+
+  [processes]
+  app = "gunicorn main:app --bind 0.0.0.0:8080"
   worker = "celery -A celery_worker worker --loglevel=info"
 
 [[vm]]
