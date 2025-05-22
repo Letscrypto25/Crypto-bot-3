@@ -10,18 +10,27 @@ from auto_bot import run_auto_bot
 from database import get_user, get_autobot_status, create_user
 from datetime import datetime
 from dotenv import load_dotenv
+import requests
 
 load_dotenv()
 
 # === Load Secrets from Environment ===
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
-bot_token = os.getenv("TELEGRAM_BOT_TOKEN")  # Use env var
+bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 
 if not bot_token:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is missing!")
 
 print(f"[INFO] Bot token loaded: {bot_token[:10]}...")  # partial print for safety
+
+# === Set Telegram Webhook ===
+webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{bot_token}"
+try:
+    r = requests.get(f"https://api.telegram.org/bot{bot_token}/setWebhook?url={webhook_url}")
+    print(f"[INFO] Webhook set: {r.json()}")
+except Exception as e:
+    print(f"[ERROR] Failed to set webhook: {e}")
 
 # === Firebase Init ===
 if not firebase_admin._apps:
