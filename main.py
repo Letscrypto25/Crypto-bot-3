@@ -9,6 +9,9 @@ from commands import handle_command
 from auto_bot import run_auto_bot 
 from database import get_user, get_autobot_status, create_user
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # === Load Secrets from Environment ===
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
