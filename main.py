@@ -13,7 +13,7 @@ from datetime import datetime
 # === Load Secrets from Environment ===
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
-bot_token = "7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY"  # UPDATED token
+bot_token = os.getenv("TELEGRAM_BOT_TOKEN")  # Use env var
 
 # === Firebase Init ===
 if not firebase_admin._apps:
@@ -21,7 +21,6 @@ if not firebase_admin._apps:
     cred = credentials.Certificate(json.loads(decoded))
     firebase_admin.initialize_app(cred, {"databaseURL": firebase_url})
 
-# === Flask App ===
 app = Flask(__name__)
 
 def log_event(user_id, event_type, message_text, status="ok", error=None):
