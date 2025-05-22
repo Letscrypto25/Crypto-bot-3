@@ -35,8 +35,11 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-@app.route(f"/webhook/{bot_token}", methods=["POST"])
-def telegram_webhook():
+@app.route("/webhook/<token>", methods=["POST"])
+def telegram_webhook(token):
+    if token != bot_token:
+        return {"ok": False, "error": "Unauthorized"}, 403
+
     data = request.get_json()
     if not data:
         return {"ok": False}
