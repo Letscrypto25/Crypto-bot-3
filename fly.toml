@@ -8,7 +8,6 @@
   PORT = "8080"
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #app = 'crypto-bot-redis'
-app = "[processes]
   app = "gunicorn main:app --bind 0.0.0.0:8080"
 primary_region = "jnb"
 
