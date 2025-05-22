@@ -1,7 +1,7 @@
 import logging
 from importlib import import_module
 from firebase_admin import db
-from notification_manager import evaluate_and_notify_user
+from notifications_manager import evaluate_and_notify_user
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +58,6 @@ def run_auto_bot():
         try:
             evaluate_and_notify_user(user)  # Analyze and send alerts if needed
         except Exception as e:
-            logger.error(f"[{user['user_id']}] Notification error: {e}")
+            logger.error(f"[{user['user_id']}] Notifications error: {e}")
 
     logger.info("Auto bot cycle complete.")
