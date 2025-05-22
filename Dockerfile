@@ -6,10 +6,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN ls -la /app
-
 # Copy app files
 COPY . .
+
+# Debug: confirm files are copied
+RUN ls -la /app
 
 # Expose the Flask app port
 EXPOSE 8080
