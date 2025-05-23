@@ -140,9 +140,7 @@ def index():
     return "Bot is running."
 
 if __name__ == '__main__':
-    asynico.run(main))
+    asyncio.run(main())  # fixed typo and added missing parentheses
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-
-
 #Update complete. Let me know when you're ready to continue with the next phase—such as adding buy/sell commands, price feeds, or more complex auto trading logic.
 
