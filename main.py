@@ -22,13 +22,13 @@ bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 if not bot_token:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is missing!")
 
-print(f"[INFO] Bot token loaded: {bot_token[:10]}...")  # partial print for safety
+print(f"[INFO] Bot token loaded: {bot_token[:10]}...")
 
 # === Set Telegram Webhook ===
 webhook_url = f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/{bot_token}"
 try:
     r = requests.get(f"https://api.telegram.org/bot{bot_token}/setWebhook?url={webhook_url}")
-    print(f"[INFO] Webhook set: {r.json()}")
+    print(f"[INFO] Webhook set response: {r.json()}")
 except Exception as e:
     print(f"[ERROR] Failed to set webhook: {e}")
 
@@ -54,13 +54,16 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
 
 @app.route("/webhook/<token>", methods=["POST"])
 def telegram_webhook(token):
+    print(f"[DEBUG] Token in URL: {token}")
+    print(f"[DEBUG] Expected token: {bot_token}")
+    
     if token != bot_token:
-        print(f"[WARN] Invalid token in request: {token}")
+        print(f"[WARN] Invalid token received.")
         return {"ok": False, "error": "Unauthorized"}, 403
         
     data = request.get_json()
     if not data:
-        print("[WARN] Empty request received.")
+        print("[WARN] Empty or invalid JSON in request.")
         return {"ok": False}
 
     message = data.get("message", {})
@@ -68,6 +71,7 @@ def telegram_webhook(token):
     text = message.get("text", "")
 
     if not chat_id:
+        print("[WARN] No chat_id found in message.")
         return {"ok": False}
 
     user_id = str(chat_id)
