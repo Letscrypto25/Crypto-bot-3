@@ -19,9 +19,9 @@ firebase_admin.initialize_app(cred, {
 })
 
 # Telegram setup
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-bot = Bot(token=BOT_TOKEN)
-ALLOWED_USERS = [123456789]  # Replace with your Telegram user ID(s)
+TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+ALLOWED_USERS = [7521070576]  # Replace with your Telegram user ID(s)
 
 # Flask app for webhook
 app = Flask(__name__)
@@ -126,7 +126,7 @@ dispatcher.add_handler(CommandHandler("leaderboard", leaderboard))
 dispatcher.add_handler(CommandHandler("trade_history", trade_history))
 
 # Webhook route
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+@app.route(f"/{TELEGRAM_BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
@@ -138,7 +138,7 @@ def index():
     return "Bot is running."
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
 
 #Update complete. Let me know when you're ready to continue with the next phase—such as adding buy/sell commands, price feeds, or more complex auto trading logic.
