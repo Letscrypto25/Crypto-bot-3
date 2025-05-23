@@ -5,6 +5,7 @@ import firebase_admin
 from firebase_admin import credentials, db
 from flask import Flask, request
 import telegram
+from telegram.ext import ApplicationBuilder,CommandHandler, ContextTypes
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler, CallbackContext
 import threading
@@ -19,7 +20,7 @@ firebase_admin.initialize_app(cred, {
 })
 
 # Telegram setup
-TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 ALLOWED_USERS = [7521070576]  # Replace with your Telegram user ID(s)
 
@@ -126,7 +127,7 @@ dispatcher.add_handler(CommandHandler("leaderboard", leaderboard))
 dispatcher.add_handler(CommandHandler("trade_history", trade_history))
 
 # Webhook route
-@app.route(f"/{TELEGRAM_BOT_TOKEN}", methods=["POST"])
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
