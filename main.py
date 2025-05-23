@@ -5,25 +5,24 @@ import logging
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler
-
 from firebase_admin import credentials, db, initialize_app
 from dotenv import load_dotenv
+from datetime import datetime
 
 from utils import send_alert, format_trade_message
 from commands import (
     handle_command, start, help_command, trade, stop_autobot,
-    get_leaderboard, set_base, set_platform, set_strategy, set_amount, show_config
+    get_leaderboard, set_base, set_platform, set_strategy,
+    set_amount, show_config
 )
 from auto_bot import run_auto_bot
 from database import get_user, get_autobot_status, create_user
-from datetime import datetime
-
-load_dotenv()
 
 # === Load Secrets from Environment ===
+load_dotenv()
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
-bot_token = os.getenv("TELEGRAM_BOT_TOKEN")  # Used for both Flask & Telegram
+bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 fly_app_name = os.getenv("FLY_APP_NAME")
 authorized_user_id = int(os.getenv("AUTHORIZED_USER_ID", "0"))
 
@@ -55,8 +54,7 @@ application.add_handler(CommandHandler("setstrategy", set_strategy))
 application.add_handler(CommandHandler("setamount", set_amount))
 application.add_handler(CommandHandler("showconfig", show_config))
 
-
-# === Log Event ===
+# === Log Events to Firebase ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
     log_ref = db.reference(f"logs/{user_id}")
     log_entry = {
@@ -69,7 +67,7 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Webhook Route for Telegram (Flask) ===
+# === Webhook Route ===
 @app.route(f"/webhook/{bot_token}", methods=["POST"])
 def telegram_webhook():
     if request.method == "POST":
@@ -77,12 +75,12 @@ def telegram_webhook():
         application.update_queue.put_nowait(update)
         return "ok"
 
-# === Legacy Message Handling Support ===
+# === Legacy Webhook Support ===
 @app.route("/legacy/<token>", methods=["POST"])
 def legacy_webhook(token):
     if token != bot_token:
         return {"ok": False, "error": "Unauthorized"}, 403
-        
+
     data = request.get_json()
     if not data:
         return {"ok": False}
@@ -130,7 +128,7 @@ def legacy_webhook(token):
 def index():
     return "Crypto Bot is live."
 
-# === Start Webhook App ===
+# === Start Webhook Listener ===
 if __name__ == "__main__":
     logger.info("Starting Telegram bot webhook listener...")
     application.run_webhook(
@@ -138,4 +136,4 @@ if __name__ == "__main__":
         port=int(os.environ.get("PORT", 8080)),
         webhook_url=f"https://{fly_app_name}.fly.dev/webhook/{bot_token}",
         flask_app=app
-        )
+    )
