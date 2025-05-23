@@ -1,45 +1,44 @@
 import os
 import json
-import requests
 import firebase_admin
 from firebase_admin import credentials, db
 from flask import Flask, request
 from telegram import Update, Bot
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import threading
-from datetime import datetime
 import asyncio
+from datetime import datetime
 
-# Load Firebase credentials
-with open("firebase_encoded.txt", "r") as f:
+# Firebase setup
+with open('firebase_encoded.txt', 'r') as f:
     firebase_data = json.load(f)
-
 cred = credentials.Certificate(firebase_data)
 firebase_admin.initialize_app(cred, {
-    "databaseURL": firebase_data["databaseURL"]
+    'databaseURL': firebase_data['databaseURL']
 })
 
-# Telegram bot
+# Telegram setup
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not BOT_TOKEN:
-    raise Exception("TELEGRAM_BOT_TOKEN not set")
-ALLOWED_USERS = [7521070576]
+bot = Bot(token=BOT_TOKEN)
+ALLOWED_USERS = [7521070576]  # Replace with your Telegram user ID(s)
 
-# Firebase helpers
-def user_ref(uid): return db.reference(f"users/{uid}")
-def leaderboard_ref(): return db.reference("leaderboard")
+# Flask app for webhook
+app = Flask(__name__)
 
-# Create app
-flask_app = Flask(__name__)
-bot_app = Application.builder().token(BOT_TOKEN).build()
+# Helper to get user reference
+def user_ref(user_id):
+    return db.reference(f"users/{user_id}")
+
+def leaderboard_ref():
+    return db.reference("leaderboard")
 
 # Command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in ALLOWED_USERS:
+    user_id = update.effective_user.id
+    if user_id not in ALLOWED_USERS:
         await update.message.reply_text("Access Denied.")
         return
-    ref = user_ref(uid)
+    ref = user_ref(user_id)
     if not ref.get():
         ref.set({"balance": 1000.0, "portfolio": {}, "history": []})
         await update.message.reply_text("Welcome! Account created with $1000.")
@@ -47,85 +46,88 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Welcome back!")
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    data = user_ref(uid).get()
+    user_id = update.effective_user.id
+    data = user_ref(user_id).get()
     if data:
         await update.message.reply_text(f"Your balance: ${data.get('balance', 0):.2f}")
 
 async def portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    holdings = user_ref(uid).child("portfolio").get() or {}
+    user_id = update.effective_user.id
+    holdings = user_ref(user_id).child("portfolio").get() or {}
     if not holdings:
-        await update.message.reply_text("Portfolio is empty.")
+        await update.message.reply_text("Your portfolio is empty.")
         return
-    text = "\n".join([f"{k}: {v}" for k, v in holdings.items()])
-    await update.message.reply_text("Your portfolio:\n" + text)
+    msg = "Your portfolio:\n" + "\n".join([f"{k}: {v}" for k, v in holdings.items()])
+    await update.message.reply_text(msg)
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lb = leaderboard_ref().get() or {}
     sorted_lb = sorted(lb.items(), key=lambda x: x[1], reverse=True)
     msg = "Leaderboard:\n"
-    for i, (uid, score) in enumerate(sorted_lb[:10], 1):
-        msg += f"{i}. User {uid}: ${score:.2f}\n"
+    for i, (user_id, score) in enumerate(sorted_lb[:10], 1):
+        msg += f"{i}. User {user_id}: ${score:.2f}\n"
     await update.message.reply_text(msg)
 
 async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    hist = user_ref(uid).child("history").get() or []
-    if not hist:
-        await update.message.reply_text("No trades yet.")
+    user_id = update.effective_user.id
+    history = user_ref(user_id).child("history").get() or []
+    if not history:
+        await update.message.reply_text("No trade history yet.")
         return
-    await update.message.reply_text("Last 10 trades:\n" + "\n".join(hist[-10:]))
+    msg = "Last 10 trades:\n"
+    for trade in history[-10:]:
+        msg += f"{trade}\n"
+    await update.message.reply_text(msg)
 
-# Register handlers
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(CommandHandler("balance", balance))
-bot_app.add_handler(CommandHandler("portfolio", portfolio))
-bot_app.add_handler(CommandHandler("leaderboard", leaderboard))
-bot_app.add_handler(CommandHandler("trade_history", trade_history))
-
-# Trading logic
+# Auto trading logic (simplified)
 def auto_trading_logic():
     users = db.reference("users").get() or {}
-    for uid, data in users.items():
+    for user_id, data in users.items():
         portfolio = data.get("portfolio", {})
         balance = data.get("balance", 0)
 
         if "BTC" not in portfolio and balance >= 500:
-            buy_amt = 100
-            new_bal = balance - buy_amt
-            portfolio["BTC"] = portfolio.get("BTC", 0) + buy_amt / 50000
+            buy_amount = 100  # example fixed amount
+            new_balance = balance - buy_amount
+            portfolio["BTC"] = portfolio.get("BTC", 0) + buy_amount / 50000  # mock BTC price
 
-            user_ref(uid).update({"balance": new_bal, "portfolio": portfolio})
-            hist = user_ref(uid).child("history").get() or []
-            hist.append(f"Bought BTC for $100 on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            user_ref(uid).child("history").set(hist)
+            # Save updates
+            user_ref(user_id).update({"balance": new_balance, "portfolio": portfolio})
+            hist_ref = user_ref(user_id).child("history")
+            history = hist_ref.get() or []
+            history.append(f"Bought BTC worth $100 on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            hist_ref.set(history)
 
-            total_val = new_bal + portfolio["BTC"] * 50000
-            leaderboard_ref().child(uid).set(total_val)
+            # Update leaderboard
+            total_value = new_balance + portfolio["BTC"] * 50000
+            leaderboard_ref().child(user_id).set(total_value)
 
+# Periodic trading scheduler
 def schedule_trading():
     auto_trading_logic()
     threading.Timer(60, schedule_trading).start()
 
-# Start trading loop
 schedule_trading()
 
-# Webhook route
-@flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
-async def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    await bot_app.process_update(update)
+# Create telegram application and add handlers
+app_telegram = ApplicationBuilder().token(BOT_TOKEN).build()
+
+app_telegram.add_handler(CommandHandler("start", start))
+app_telegram.add_handler(CommandHandler("balance", balance))
+app_telegram.add_handler(CommandHandler("portfolio", portfolio))
+app_telegram.add_handler(CommandHandler("leaderboard", leaderboard))
+app_telegram.add_handler(CommandHandler("trade_history", trade_history))
+
+# Flask webhook route
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    asyncio.run(app_telegram.process_update(update))
     return "ok"
 
-@flask_app.route("/")
+@app.route("/")
 def index():
-    return "Bot running!"
-
-# Start Flask
-def main():
-    bot_app.run_polling()  # this can be replaced by webhook setup if preferred
+    return "Bot is running."
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    flask_app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
