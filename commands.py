@@ -1,5 +1,3 @@
-# commands.py
-
 import os
 import requests
 import logging
@@ -38,6 +36,7 @@ def handle_command(message):
         send_telegram_message(chat_id, "AutoBot is running!")
     else:
         send_telegram_message(chat_id, "Unknown command.")
+
 # /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -52,13 +51,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/setplatform <binance|luno>\n"
         "/setstrategy <strategy_name>\n"
         "/setamount <amount>\n"
+        "/setbase <currency>\n"
         "/showconfig - View current configuration\n"
         "/help - Show this message"
     )
     await update.message.reply_text(help_text)
 
 
-# /trade
 # /trade
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
@@ -84,7 +83,6 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Failed to fetch price.")
             return
 
-        # Simulated order execution
         trade_record = {
             "symbol": symbol,
             "amount": amount,
@@ -224,5 +222,3 @@ def show_config(update: Update, context: CallbackContext):
     except Exception as e:
         logger.exception("show_config error")
         update.message.reply_text("Error fetching config.")
-
-
