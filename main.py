@@ -9,6 +9,7 @@ from telegram.ext import ApplicationBuilder,CommandHandler, ContextTypes
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler, CallbackContext
 import threading
+import asynico
 from datetime import datetime
 
 # Firebase setup
