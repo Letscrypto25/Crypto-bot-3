@@ -3,7 +3,11 @@ from datetime import datetime
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
-
+from commands import (
+    start, help_command, trade, stop_autobot,
+    get_leaderboard, set_base, set_platform, set_strategy,
+    set_amount, show_config
+)
 from database import (
     get_user_data, save_trade,
     get_user, get_all_users, firebase_ref
