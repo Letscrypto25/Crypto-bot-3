@@ -5,8 +5,8 @@ import logging
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler
-import firebase_admin 
-if not firebade_admin_apps: credentials, db, initialize_app
+from firebase_admin import credentials, db, initialize_app
+import firebase_admin
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -25,15 +25,13 @@ firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
 bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 fly_app_name = os.getenv("FLY_APP_NAME")
-authorized_user_id = int(os.getenv("AUTHORIZED_USER_ID", "0"))
 
 # === Firebase Init ===
-
 if not firebase_admin._apps:
     decoded = base64.b64decode(firebase_encoded).decode("utf-8")
     cred = credentials.Certificate(json.loads(decoded))
     initialize_app(cred, {"databaseURL": firebase_url})
-    
+
 # === Logging ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -125,12 +123,13 @@ def legacy_webhook(token):
         log_event(user_id, "autobot", text, status="error", error=e)
 
     return {"ok": True}
+
 @app.route("/")
 def index():
     return "Crypto Bot is live."
 
-# === Start Webhook Listener ==
-    if __name__ == "__main__":
+# === Start Webhook Listener ===
+if __name__ == "__main__":
     logger.info("Starting Telegram bot webhook listener...")
 
     webhook_path = f"/webhook/{bot_token}"
