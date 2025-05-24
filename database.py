@@ -1,7 +1,7 @@
 import os
 import base64
 import firebase_admin
-from firebase_admin import credentials, db
+from firebase_admin import credentials, db, initialize_app 
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,6 @@ if not os.path.exists("firebase_credentials.json"):
     decoded = base64.b64decode(encoded).decode("utf-8")
     with open("firebase_credentials.json", "w") as f:
         f.write(decoded)
-
 # Initialize Firebase app if not initialized
 if not firebase_admin._apps:
     cred = credentials.Certificate("firebase_credentials.json")
