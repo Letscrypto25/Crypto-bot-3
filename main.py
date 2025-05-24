@@ -14,7 +14,7 @@ import firebase_admin
 
 from utils import send_alert, format_trade_message
 from commands import (
-    handle_command, start, help_command, trade, stop_autobot,
+    start, help_command, trade, stop_autobot,
     get_leaderboard, set_base, set_platform, set_strategy,
     set_amount, show_config
 )
