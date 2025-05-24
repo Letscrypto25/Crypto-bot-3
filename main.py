@@ -27,11 +27,11 @@ fly_app_name = os.getenv("FLY_APP_NAME")
 authorized_user_id = int(os.getenv("AUTHORIZED_USER_ID", "0"))
 
 # === Firebase Init ===
-if not initialize_app._apps:
+
+if not firebase_admin._apps:
     decoded = base64.b64decode(firebase_encoded).decode("utf-8")
     cred = credentials.Certificate(json.loads(decoded))
     initialize_app(cred, {"databaseURL": firebase_url})
-
 # === Logging ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
