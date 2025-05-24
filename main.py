@@ -124,10 +124,7 @@ def legacy_webhook(token):
         log_event(user_id, "autobot", text, status="error", error=e)
 
     return {"ok": True}
-
 @app.route("/")
-
-
 def index():
     return "Crypto Bot is live."
 
@@ -136,9 +133,7 @@ if __name__ == "__main__":
     logger.info("Starting Telegram bot webhook listener...")
     application.run_webhook(
         listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080))
-        webhook_url=f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY",
-        
-
-        
+        port=int(os.environ.get("PORT", 8080)),  # <-- fixed: comma added
+        webhook_url="https://crypto-bot-3-white-wind-424.fly.dev/webhook/7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY",
+        url_path="webhook/7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY"
     )
