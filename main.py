@@ -26,7 +26,6 @@ load_dotenv()
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
 bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-fly_app_name = os.getenv("FLY_APP_NAME")
 
 # === Firebase Init ===
 if not firebase_admin._apps:
@@ -138,6 +137,6 @@ async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
     await telegram_app.bot.set_webhook(
-        url=f"https://{fly_app_name}.fly.dev/webhook/{bot_token}"
+        url=f"https://{crypto-bot-3-white-wind-424.fly.dev/webhook/{7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY}"
     )
     await telegram_app.start()
