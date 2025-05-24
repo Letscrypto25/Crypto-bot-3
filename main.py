@@ -126,6 +126,8 @@ def legacy_webhook(token):
     return {"ok": True}
 
 @app.route("/")
+
+
 def index():
     return "Crypto Bot is live."
 
@@ -134,7 +136,9 @@ if __name__ == "__main__":
     logger.info("Starting Telegram bot webhook listener...")
     application.run_webhook(
         listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080)),
-        webhook_url=f"https://{fly_app_name}.fly.dev/webhook/{bot_token}",
+        port=int(os.environ.get("PORT", 8080))
+        webhook_url=f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY",
         flask_app=app
+
+        
     )
