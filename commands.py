@@ -1,20 +1,16 @@
-import os
-import requests
 import logging
 from datetime import datetime
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes, CommandHandler, CallbackContext
+from telegram.ext import ContextTypes
 
 from database import (
-    get_user_data, update_user_data, save_trade,
-    get_leaderboard_ref, get_trades_ref, get_user, get_all_users, firebase_ref
+    get_user_data, save_trade,
+    get_user, get_all_users, firebase_ref
 )
 from exchanges import get_price
-from tasks import send_telegram_message, update_leaderboard
 
 logger = logging.getLogger(__name__)
-
 
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -25,17 +21,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "autobot": False
     })
     await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
-
-def handle_command(message):
-    chat_id = message["message"]["chat"]["id"]
-    text = message["message"]["text"].lower()
-
-    if text == "/start":
-        send_telegram_message(chat_id, "Welcome! Your AutoBot is ready.")
-    elif text == "/status":
-        send_telegram_message(chat_id, "AutoBot is running!")
-    else:
-        send_telegram_message(chat_id, "Unknown command.")
 
 # /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,7 +41,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/help - Show this message"
     )
     await update.message.reply_text(help_text)
-
 
 # /trade
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,24 +81,22 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("Trade error")
         await update.message.reply_text(f"Trade failed: {e}")
 
-
 # /stopautobot
-def stop_autobot(update: Update, context: CallbackContext):
+async def stop_autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
         user = get_user(user_id)
         if user:
             firebase_ref.child(user_id).update({"autobot": False})
-            update.message.reply_text("Autobot disabled.")
+            await update.message.reply_text("Autobot disabled.")
         else:
-            update.message.reply_text("Use /start to register.")
+            await update.message.reply_text("Use /start to register.")
     except Exception as e:
         logger.exception("stop_autobot error")
-        update.message.reply_text("An error occurred while stopping the autobot.")
-
+        await update.message.reply_text("An error occurred while stopping the autobot.")
 
 # /leaderboard
-def get_leaderboard(update: Update, context: CallbackContext):
+async def get_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         leaderboard = get_all_users()
         if leaderboard:
@@ -124,32 +106,30 @@ def get_leaderboard(update: Update, context: CallbackContext):
                 name = data.get("first_name", "User")
                 profit = data.get("total_profit", 0)
                 message += f"{i}. {name} — ${profit:.2f}\n"
-            update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
         else:
-            update.message.reply_text("No users found.")
+            await update.message.reply_text("No users found.")
     except Exception as e:
         logger.exception("Leaderboard error")
-        update.message.reply_text("An error occurred while fetching the leaderboard.")
-
+        await update.message.reply_text("An error occurred while fetching the leaderboard.")
 
 # /setbase
-def set_base(update: Update, context: CallbackContext):
+async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
         user = get_user(user_id)
         if user and len(context.args) == 1:
             base = context.args[0].upper()
             firebase_ref.child(user_id).update({"base_currency": base})
-            update.message.reply_text(f"Base currency set to {base}.")
+            await update.message.reply_text(f"Base currency set to {base}.")
         else:
-            update.message.reply_text("Usage: /setbase BTC")
+            await update.message.reply_text("Usage: /setbase BTC")
     except Exception as e:
         logger.exception("set_base error")
-        update.message.reply_text("An error occurred while setting base currency.")
-
+        await update.message.reply_text("An error occurred while setting base currency.")
 
 # /setplatform
-def set_platform(update: Update, context: CallbackContext):
+async def set_platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
         user = get_user(user_id)
@@ -157,34 +137,32 @@ def set_platform(update: Update, context: CallbackContext):
             platform = context.args[0].lower()
             if platform in ["binance", "luno"]:
                 firebase_ref.child(user_id).update({"platform": platform})
-                update.message.reply_text(f"Trading platform set to {platform}.")
+                await update.message.reply_text(f"Trading platform set to {platform}.")
             else:
-                update.message.reply_text("Supported platforms: binance, luno")
+                await update.message.reply_text("Supported platforms: binance, luno")
         else:
-            update.message.reply_text("Usage: /setplatform binance")
+            await update.message.reply_text("Usage: /setplatform binance")
     except Exception as e:
         logger.exception("set_platform error")
-        update.message.reply_text("An error occurred while setting platform.")
-
+        await update.message.reply_text("An error occurred while setting platform.")
 
 # /setstrategy
-def set_strategy(update: Update, context: CallbackContext):
+async def set_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
         user = get_user(user_id)
         if user and len(context.args) == 1:
             strategy = context.args[0].lower()
             firebase_ref.child(user_id).update({"strategy": strategy})
-            update.message.reply_text(f"Strategy set to {strategy}.")
+            await update.message.reply_text(f"Strategy set to {strategy}.")
         else:
-            update.message.reply_text("Usage: /setstrategy <strategy_name>")
+            await update.message.reply_text("Usage: /setstrategy <strategy_name>")
     except Exception as e:
         logger.exception("set_strategy error")
-        update.message.reply_text("An error occurred while setting strategy.")
-
+        await update.message.reply_text("An error occurred while setting strategy.")
 
 # /setamount
-def set_amount(update: Update, context: CallbackContext):
+async def set_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
         user = get_user(user_id)
@@ -192,18 +170,17 @@ def set_amount(update: Update, context: CallbackContext):
             try:
                 amount = float(context.args[0])
                 firebase_ref.child(user_id).update({"trade_amount": amount})
-                update.message.reply_text(f"Trade amount set to ${amount:.2f}.")
+                await update.message.reply_text(f"Trade amount set to ${amount:.2f}.")
             except ValueError:
-                update.message.reply_text("Please enter a valid number.")
+                await update.message.reply_text("Please enter a valid number.")
         else:
-            update.message.reply_text("Usage: /setamount 50.0")
+            await update.message.reply_text("Usage: /setamount 50.0")
     except Exception as e:
         logger.exception("set_amount error")
-        update.message.reply_text("An error occurred while setting amount.")
-
+        await update.message.reply_text("An error occurred while setting amount.")
 
 # /showconfig
-def show_config(update: Update, context: CallbackContext):
+async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
         user_data = firebase_ref.child(user_id).get()
@@ -216,9 +193,9 @@ def show_config(update: Update, context: CallbackContext):
                 f"Autobot: {'Enabled' if user_data.get('autobot', False) else 'Disabled'}\n"
                 f"Status: {'Running' if user_data.get('active', False) else 'Stopped'}"
             )
-            update.message.reply_text(config_msg)
+            await update.message.reply_text(config_msg)
         else:
-            update.message.reply_text("No config found. Use /start to register.")
+            await update.message.reply_text("No config found. Use /start to register.")
     except Exception as e:
         logger.exception("show_config error")
-        update.message.reply_text("Error fetching config.")
+        await update.message.reply_text("Error fetching config.")
