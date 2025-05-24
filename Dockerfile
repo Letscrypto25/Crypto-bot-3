@@ -4,16 +4,17 @@ WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy app files
+# Copy the rest of the app
 COPY . .
 
-# Debug: confirm files are copied
-RUN ls -la /app
+# Optional: Debug file listing
+# RUN ls -la /app
 
-# Expose the Flask app port
+# Expose port used by Uvicorn
 EXPOSE 8080
 
-# Run the app
-CMD ["python", "main.py"]
+# Start the FastAPI app using uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
