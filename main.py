@@ -32,6 +32,7 @@ if not firebase_admin._apps:
     decoded = base64.b64decode(firebase_encoded).decode("utf-8")
     cred = credentials.Certificate(json.loads(decoded))
     initialize_app(cred, {"databaseURL": firebase_url})
+    
 # === Logging ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
