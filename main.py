@@ -138,7 +138,7 @@ if __name__ == "__main__":
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8080))
         webhook_url=f"https://crypto-bot-3-white-wind-424.fly.dev/webhook/7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY",
-        flask_app=app
+        
 
         
     )
