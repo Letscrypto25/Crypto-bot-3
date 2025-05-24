@@ -137,6 +137,6 @@ async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
     await telegram_app.bot.set_webhook(
-        url=f"https://{crypto-bot-3-white-wind-424.fly.dev}/webhook/{7874445351:AAFfzBb9heQAEkK7-FuuAdpPMokWNG-FNVY}"
+        url=f"https://{crypto-bot-3-white-wind-424.fly.dev}/webhook/{TELEGRAM_BOT_TOKEN}"
     )
     await telegram_app.start()
