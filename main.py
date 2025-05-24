@@ -1,7 +1,6 @@
 import base64
 import json
-import os
-import uvicorn 
+import os 
 import logging
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
@@ -28,6 +27,7 @@ firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
 bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 fly_app = "crypto-bot-3-white-wind-424"
+
 # === Firebase Init ===
 if not firebase_admin._apps:
     decoded = base64.b64decode(firebase_encoded).decode("utf-8")
@@ -135,9 +135,9 @@ def root():
 # === Start bot background service on app startup ===
 @app.on_event("startup")
 async def start_bot():
-    logger.info("Starting Telegram bot...")
+    logger.info("Setting Telegram webhook...")
     await telegram_app.initialize()
     await telegram_app.bot.set_webhook(
-        url=f"https://{fly_app}/webhook/{TELEGRAM_BOT_TOKEN}"
+        url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
-    await telegram_app.start()
+    logger.info("Webhook set successfully.")
