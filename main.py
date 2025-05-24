@@ -69,8 +69,8 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Telegram Webhook Route ===
-@app.post(f"/webhook/{bot_token}")
+# === Telegram Webhook Route (STATIC) ===
+@app.post("/webhook")
 async def telegram_webhook(request: Request):
     try:
         data = await request.json()
@@ -138,6 +138,6 @@ async def start_bot():
     logger.info("Setting Telegram webhook...")
     await telegram_app.initialize()
     await telegram_app.bot.set_webhook(
-        url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
+        url=f"https://{fly_app}.fly.dev/webhook"
     )
     logger.info("Webhook set successfully.")
