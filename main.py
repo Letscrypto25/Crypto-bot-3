@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import uvicorn 
 import logging
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
