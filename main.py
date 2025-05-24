@@ -2,13 +2,15 @@ import base64
 import json
 import os
 import logging
-from flask import Flask, request
+from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
-from telegram.ext import Application, CommandHandler
+from telegram.ext import (
+    Application, CommandHandler
+)
 from firebase_admin import credentials, db, initialize_app
-import firebase_admin
 from dotenv import load_dotenv
 from datetime import datetime
+import firebase_admin
 
 from utils import send_alert, format_trade_message
 from commands import (
@@ -19,7 +21,7 @@ from commands import (
 from auto_bot import run_auto_bot
 from database import get_user, get_autobot_status, create_user
 
-# === Load Secrets from Environment ===
+# === Load Environment Variables ===
 load_dotenv()
 firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
 firebase_url = os.getenv("FIREBASE_DATABASE_URL")
@@ -34,27 +36,27 @@ if not firebase_admin._apps:
 
 # === Logging ===
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("crypto-bot")
 
-# === Flask App ===
-app = Flask(__name__)
+# === FastAPI App ===
+app = FastAPI()
 
-# === Telegram App Init ===
-application = Application.builder().token(bot_token).build()
+# === Telegram Bot Init ===
+telegram_app = Application.builder().token(bot_token).build()
 
-# === Register Command Handlers ===
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("help", help_command))
-application.add_handler(CommandHandler("trade", trade))
-application.add_handler(CommandHandler("stopautobot", stop_autobot))
-application.add_handler(CommandHandler("leaderboard", get_leaderboard))
-application.add_handler(CommandHandler("setbase", set_base))
-application.add_handler(CommandHandler("setplatform", set_platform))
-application.add_handler(CommandHandler("setstrategy", set_strategy))
-application.add_handler(CommandHandler("setamount", set_amount))
-application.add_handler(CommandHandler("showconfig", show_config))
+# === Register Handlers ===
+telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("help", help_command))
+telegram_app.add_handler(CommandHandler("trade", trade))
+telegram_app.add_handler(CommandHandler("stopautobot", stop_autobot))
+telegram_app.add_handler(CommandHandler("leaderboard", get_leaderboard))
+telegram_app.add_handler(CommandHandler("setbase", set_base))
+telegram_app.add_handler(CommandHandler("setplatform", set_platform))
+telegram_app.add_handler(CommandHandler("setstrategy", set_strategy))
+telegram_app.add_handler(CommandHandler("setamount", set_amount))
+telegram_app.add_handler(CommandHandler("showconfig", show_config))
 
-# === Log Events to Firebase ===
+# === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
     log_ref = db.reference(f"logs/{user_id}")
     log_entry = {
@@ -67,24 +69,25 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Webhook Route ===
-@app.route(f"/webhook/{bot_token}", methods=["POST"])
-def telegram_webhook():
-    if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        application.update_queue.put_nowait(update)
-        return "ok"
+# === Telegram Webhook Route ===
+@app.post(f"/webhook/{bot_token}")
+async def telegram_webhook(request: Request):
+    try:
+        data = await request.json()
+        update = Update.de_json(data, telegram_app.bot)
+        await telegram_app.update_queue.put(update)
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid Telegram update")
 
-# === Legacy Webhook Support ===
-@app.route("/legacy/<token>", methods=["POST"])
-def legacy_webhook(token):
+# === Fallback Legacy Webhook ===
+@app.post("/legacy/{token}")
+async def legacy_webhook(token: str, request: Request):
     if token != bot_token:
-        return {"ok": False, "error": "Unauthorized"}, 403
+        raise HTTPException(status_code=403, detail="Unauthorized")
 
-    data = request.get_json()
-    if not data:
-        return {"ok": False}
-
+    data = await request.json()
     message = data.get("message", {})
     chat_id = message.get("chat", {}).get("id")
     text = message.get("text", "")
@@ -124,20 +127,17 @@ def legacy_webhook(token):
 
     return {"ok": True}
 
-@app.route("/")
-def index():
-    return "Crypto Bot is live."
+# === Root Endpoint ===
+@app.get("/")
+def root():
+    return {"message": "Crypto Bot is live"}
 
-# === Start Webhook Listener ===
-if __name__ == "__main__":
-    logger.info("Starting Telegram bot webhook listener...")
-
-    webhook_path = f"/webhook/{bot_token}"
-    webhook_url = f"https://{fly_app_name}.fly.dev{webhook_path}"
-
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080)),
-        webhook_url=webhook_url,
-        url_path=webhook_path
+# === Start bot background service on app startup ===
+@app.on_event("startup")
+async def start_bot():
+    logger.info("Starting Telegram bot...")
+    await telegram_app.initialize()
+    await telegram_app.bot.set_webhook(
+        url=f"https://{fly_app_name}.fly.dev/webhook/{bot_token}"
     )
+    await telegram_app.start()
