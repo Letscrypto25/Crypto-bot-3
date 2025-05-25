@@ -18,6 +18,7 @@ python-binance==1.0.17          # Binance client
 luno-python==0.0.10             # Luno client (older version, but works)
 
 # HTTP requests & networking
+bcrypt
 httpx==0.25.2                   # Async HTTP client (optional unless used explicitly)
 requests                        # Basic HTTP client (used by many libraries)
 
