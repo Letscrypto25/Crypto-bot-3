@@ -1,8 +1,5 @@
 import os
 import requests
-from datetime import datetime
-import firebase_admin
-from firebase_admin import db
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 USER_ID = os.getenv("TELEGRAM_USER_ID")
@@ -43,23 +40,3 @@ def format_strategy_log(user, strategy, action=None, details=None):
     if details:
         msg += f"\n{details}"
     return msg
-
-
-def log_event(user_id, event_type, message_text, status="ok", error=None):
-    """Log user event to Firebase Realtime DB under /logs/{user_id}/."""
-    try:
-        if not firebase_admin._apps:
-            return  # Firebase should already be initialized elsewhere
-
-        log_ref = db.reference(f"logs/{user_id}")
-        log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "event": event_type,
-            "message": message_text,
-            "status": status,
-        }
-        if error:
-            log_entry["error"] = str(error)
-        log_ref.push(log_entry)
-    except Exception as e:
-        print("Logging error:", e)
