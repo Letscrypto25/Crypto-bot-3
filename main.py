@@ -1,3 +1,4 @@
+# === IMPORTS ===
 import base64
 import json
 import os
@@ -18,7 +19,7 @@ from commands import (
     set_amount, show_config
 )
 from auto_bot import run_auto_bot
-from database import get_user, get_autobot_status, create_user
+from database import get_user, get_autobot_status, create_user, update_user_config
 
 # === Load Environment Variables ===
 load_dotenv()
@@ -68,7 +69,7 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Telegram Webhook Route with token decoding ===
+# === Telegram Webhook Route ===
 @app.post("/webhook/{token}")
 async def telegram_webhook(request: Request, token: str):
     token = unquote(token)
@@ -78,13 +79,13 @@ async def telegram_webhook(request: Request, token: str):
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_app.bot)
-        await telegram_app.update_queue.put_nowait(update)  # Correct way to handle update
+        await telegram_app.update_queue.put_nowait(update)
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         raise HTTPException(status_code=400, detail="Invalid Telegram update")
 
-# === Fallback Legacy Webhook ===
+# === Legacy Webhook ===
 @app.post("/legacy/{token}")
 async def legacy_webhook(token: str, request: Request):
     if token != bot_token:
@@ -130,12 +131,49 @@ async def legacy_webhook(token: str, request: Request):
 
     return {"ok": True}
 
+# === Register New User via API ===
+@app.post("/register")
+async def register_user(request: Request):
+    data = await request.json()
+    user_id = str(data.get("user_id"))
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    if get_user(user_id):
+        return {"status": "exists", "message": f"User {user_id} already registered."}
+
+    create_user(user_id)
+    log_event(user_id, "register_api", "User registered via API")
+    return {"status": "created", "message": f"User {user_id} successfully registered."}
+
+# === Manual Trade via API ===
+@app.post("/api/trade")
+async def trade_api(request: Request):
+    data = await request.json()
+    user_id = str(data.get("user_id"))
+    amount = data.get("amount")
+
+    user = get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        # If amount is passed, update config
+        if amount:
+            update_user_config(user_id, {"amount": amount})
+        run_auto_bot(user_id, manual=True)
+        log_event(user_id, "api_trade", f"Trade executed via API for {user_id}")
+        return {"status": "success", "message": "Trade executed"}
+    except Exception as e:
+        log_event(user_id, "api_trade", "Error", status="error", error=e)
+        raise HTTPException(status_code=500, detail=f"Trade error: {e}")
+
 # === Root Endpoint ===
 @app.get("/")
 def root():
     return {"message": "Crypto Bot is live"}
 
-# === Start bot background service on app startup ===
+# === Startup Event ===
 @app.on_event("startup")
 async def start_bot():
     logger.info("Starting Telegram bot...")
@@ -160,7 +198,7 @@ async def start_bot():
     )
     logger.info("Webhook set successfully.")
 
-# === Shutdown Telegram bot cleanly ===
+# === Shutdown Event ===
 @app.on_event("shutdown")
 async def stop_bot():
     logger.info("Stopping Telegram bot...")
