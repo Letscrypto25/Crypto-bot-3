@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import firebase_admin
 from urllib.parse import unquote
+from types import SimpleNamespace
 
 from utils import send_alert, format_trade_message
 from commands import (
@@ -68,44 +69,35 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Handle Command for Legacy Webhook ===
-async def handle_command(text, user_id, chat_id):
-    command = text.strip().split()[0].lower()
-    context_args = text.strip().split()[1:]
+# === Handle Command Manually for Legacy Route ===
+async def handle_command(text, user_id):
+    update = Update(update_id=0, message=SimpleNamespace(chat=SimpleNamespace(id=int(user_id)), text=text))
+    context = SimpleNamespace(args=text.split()[1:] if " " in text else [])
 
-    class DummyContext:
-        def __init__(self, args):
-            self.args = args
+    if text.startswith("/start"):
+        await start(update, context)
+    elif text.startswith("/help"):
+        await help_command(update, context)
+    elif text.startswith("/trade"):
+        await trade(update, context)
+    elif text.startswith("/stopautobot"):
+        await stop_autobot(update, context)
+    elif text.startswith("/leaderboard"):
+        await get_leaderboard(update, context)
+    elif text.startswith("/setbase"):
+        await set_base(update, context)
+    elif text.startswith("/setplatform"):
+        await set_platform(update, context)
+    elif text.startswith("/setstrategy"):
+        await set_strategy(update, context)
+    elif text.startswith("/setamount"):
+        await set_amount(update, context)
+    elif text.startswith("/showconfig"):
+        await show_config(update, context)
+    else:
+        raise ValueError(f"Unknown command: {text}")
 
-    class DummyUpdate:
-        def __init__(self, user_id, chat_id):
-            self.effective_user = type("User", (), {"id": int(user_id)})
-            self.effective_chat = type("Chat", (), {"id": int(chat_id)})
-            self.message = type("Message", (), {"text": text})
-
-    update = DummyUpdate(user_id, chat_id)
-    context = DummyContext(context_args)
-
-    command_map = {
-        "/start": start,
-        "/help": help_command,
-        "/trade": trade,
-        "/stopautobot": stop_autobot,
-        "/leaderboard": get_leaderboard,
-        "/setbase": set_base,
-        "/setplatform": set_platform,
-        "/setstrategy": set_strategy,
-        "/setamount": set_amount,
-        "/showconfig": show_config
-    }
-
-    handler = command_map.get(command)
-    if handler:
-        await handler(update, context)
-        return f"Executed {command}"
-    return "Unknown command."
-
-# === Telegram Webhook Route with token decoding ===
+# === Telegram Webhook Route ===
 @app.post("/webhook/{token}")
 async def telegram_webhook(request: Request, token: str):
     token = unquote(token)
@@ -121,7 +113,7 @@ async def telegram_webhook(request: Request, token: str):
         logger.error(f"Webhook error: {e}")
         raise HTTPException(status_code=400, detail="Invalid Telegram update")
 
-# === Fallback Legacy Webhook ===
+# === Legacy Route for Raw POST ===
 @app.post("/legacy/{token}")
 async def legacy_webhook(token: str, request: Request):
     if token != bot_token:
@@ -140,29 +132,27 @@ async def legacy_webhook(token: str, request: Request):
 
     if not user:
         create_user(user_id)
-        send_alert("Welcome! Your crypto bot profile has been created.", chat_id)
+        await send_alert("Welcome! Your crypto bot profile has been created.", chat_id)
         log_event(user_id, "new_user", text)
         return {"ok": True}
 
     if text.startswith("/"):
         try:
-            response = await handle_command(text, user_id, chat_id)
-            if response:
-                send_alert(response, chat_id)
+            await handle_command(text, user_id)
             log_event(user_id, "command", text)
         except Exception as e:
-            send_alert(f"Command error for user {user_id}: {e}", chat_id)
-            send_alert("Oops, there was an error handling your command.", chat_id)
+            await send_alert(f"Command error for user {user_id}: {e}", chat_id)
+            await send_alert("Oops, there was an error handling your command.", chat_id)
             log_event(user_id, "command", text, status="error", error=e)
         return {"ok": True}
 
     try:
         if get_autobot_status(user_id):
-            run_auto_bot(user_id)
+            await run_auto_bot(user_id)
             log_event(user_id, "autobot", text)
     except Exception as e:
-        send_alert(f"AutoBot error for {user_id}: {e}", chat_id)
-        send_alert("Error running AutoBot. Check your settings.", chat_id)
+        await send_alert(f"AutoBot error for {user_id}: {e}", chat_id)
+        await send_alert("Error running AutoBot. Check your settings.", chat_id)
         log_event(user_id, "autobot", text, status="error", error=e)
 
     return {"ok": True}
@@ -172,7 +162,7 @@ async def legacy_webhook(token: str, request: Request):
 def root():
     return {"message": "Crypto Bot is live"}
 
-# === Start bot background service on app startup ===
+# === Start Telegram Background Service on App Startup ===
 @app.on_event("startup")
 async def start_bot():
     logger.info("Setting Telegram webhook...")
