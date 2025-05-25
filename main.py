@@ -1,206 +1,163 @@
+import base64
+import json
 import os
 import logging
-import json
-import base64
-import firebase_admin
-from firebase_admin import credentials, db
-from flask import Flask, request
-import requests
-from binance.client import Client as BinanceClient
-from binance.exceptions import BinanceAPIException
+from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
-from telegram.ext import CommandHandler, CallbackContext, ApplicationBuilder
+from telegram.ext import Application, CommandHandler
+from firebase_admin import credentials, db, initialize_app
+from dotenv import load_dotenv
+from datetime import datetime
+import firebase_admin
+from urllib.parse import unquote
 
-# Firebase initialization
-with open("firebase_encoded.txt", "r") as f:
-    encoded = f.read()
-cred = credentials.Certificate(json.loads(base64.b64decode(encoded)))
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://cryptotest-dc7f0-default-rtdb.firebaseio.com/'
-})
+from utils import send_alert, format_trade_message
+from commands import (
+    start, help_command, trade, stop_autobot,
+    get_leaderboard, set_base, set_platform, set_strategy,
+    set_amount, show_config
+)
+from auto_bot import run_auto_bot
+from database import get_user, get_autobot_status, create_user
 
-token = os.environ.get("BOT_TOKEN")
-OWNER_ID = os.environ.get("OWNER_ID")
-app = Flask(__name__)
+# === Load Environment Variables ===
+load_dotenv()
+firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
+firebase_url = os.getenv("FIREBASE_DATABASE_URL")
+bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+fly_app = "crypto-bot-3-white-wind-424"
 
-async def start(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    ref = db.reference(f"users/{user_id}")
-    if not ref.get():
-        ref.set({
-            'name': update.effective_user.first_name,
-            'active': False,
-            'autobot': False,
-            'total_profit': 0
-        })
-    await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
+# === Firebase Init ===
+if not firebase_admin._apps:
+    decoded = base64.b64decode(firebase_encoded).decode("utf-8")
+    cred = credentials.Certificate(json.loads(decoded))
+    initialize_app(cred, {"databaseURL": firebase_url})
 
-async def help_command(update: Update, context: CallbackContext):
-    await update.message.reply_text("""
-/start - Start the bot
-/help - Show this help message
-/register <exchange> <api_key> <secret>
-/setplatform <binance|luno>
-/setstrategy <strategy_name>
-/setamount <amount>
-/setbase <currency>
-/trade <BUY/SELL> <SYMBOL> <AMOUNT>
-/balance - Get your exchange balance
-/autobot enable|disable
-/autobot_config <key> <value>
-/showconfig - Show your bot settings
-/leaderboard - Show top users
-/stopautobot - Disable your trading bot
-""")
+# === Logging ===
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("crypto-bot")
 
-async def register(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    if len(context.args) != 3:
-        await update.message.reply_text("Usage: /register <exchange> <api_key> <secret>")
-        return
-    exchange, api_key, api_secret = context.args
-    ref = db.reference(f"users/{user_id}")
-    ref.update({
-        'exchange': exchange,
-        'api_key': api_key,
-        'api_secret': api_secret
-    })
-    await update.message.reply_text(f"Exchange credentials saved for {exchange}.")
+# === FastAPI App ===
+app = FastAPI()
 
-async def balance(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    user_data = db.reference(f"users/{user_id}").get()
-    if not user_data or 'exchange' not in user_data:
-        await update.message.reply_text("Please register your exchange first using /register.")
-        return
-    if user_data['exchange'] == 'binance':
-        client = BinanceClient(user_data['api_key'], user_data['api_secret'])
-        try:
-            account_info = client.get_account()
-            balances = [b for b in account_info['balances'] if float(b['free']) > 0]
-            message = "Your balances:\n" + "\n".join([f"{b['asset']}: {b['free']}" for b in balances])
-        except BinanceAPIException as e:
-            message = f"Error fetching balance: {e.message}"
-        await update.message.reply_text(message)
-    else:
-        await update.message.reply_text("Exchange not supported yet.")
+# === Telegram Bot Init ===
+telegram_app = Application.builder().token(bot_token).build()
 
-async def autobot_config(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    if len(context.args) != 2:
-        await update.message.reply_text("Usage: /autobot_config <key> <value>")
-        return
-    key, value = context.args
-    ref = db.reference(f"users/{user_id}/autobot_config")
-    ref.update({key: value})
-    await update.message.reply_text(f"Autobot config updated: {key} = {value}")
+# === Register Handlers ===
+telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("help", help_command))
+telegram_app.add_handler(CommandHandler("trade", trade))
+telegram_app.add_handler(CommandHandler("stopautobot", stop_autobot))
+telegram_app.add_handler(CommandHandler("leaderboard", get_leaderboard))
+telegram_app.add_handler(CommandHandler("setbase", set_base))
+telegram_app.add_handler(CommandHandler("setplatform", set_platform))
+telegram_app.add_handler(CommandHandler("setstrategy", set_strategy))
+telegram_app.add_handler(CommandHandler("setamount", set_amount))
+telegram_app.add_handler(CommandHandler("showconfig", show_config))
 
-async def autobot(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    if not context.args or context.args[0] not in ['enable', 'disable']:
-        await update.message.reply_text("Usage: /autobot enable|disable")
-        return
-    enable = context.args[0] == 'enable'
-    db.reference(f"users/{user_id}").update({'autobot': enable})
-    await update.message.reply_text(f"Autobot {'enabled' if enable else 'disabled'}.")
-
-async def setplatform(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    if not context.args:
-        await update.message.reply_text("Please specify a platform: binance or luno")
-        return
-    platform = context.args[0].lower()
-    if platform in ['binance', 'luno']:
-        db.reference(f"users/{user_id}").update({'platform': platform})
-        await update.message.reply_text(f"Platform set to {platform}.")
-    else:
-        await update.message.reply_text("Unsupported platform.")
-
-async def setstrategy(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    if not context.args:
-        await update.message.reply_text("Please provide a strategy name.")
-        return
-    strategy = context.args[0]
-    db.reference(f"users/{user_id}").update({'strategy': strategy})
-    await update.message.reply_text(f"Strategy set to {strategy}.")
-
-async def setamount(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    try:
-        amount = float(context.args[0])
-        db.reference(f"users/{user_id}").update({'trade_amount': amount})
-        await update.message.reply_text(f"Trade amount set to {amount}.")
-    except (ValueError, IndexError):
-        await update.message.reply_text("Usage: /setamount <amount>")
-
-async def setbase(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    if not context.args:
-        await update.message.reply_text("Please provide a base currency.")
-        return
-    base_currency = context.args[0]
-    db.reference(f"users/{user_id}").update({'base_currency': base_currency})
-    await update.message.reply_text(f"Base currency set to {base_currency}.")
-
-async def showconfig(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    user_data = db.reference(f"users/{user_id}").get()
-    if not user_data:
-        await update.message.reply_text("User not registered.")
-        return
-    config = "\n".join([f"{k}: {v}" for k, v in user_data.items()])
-    await update.message.reply_text(f"Your configuration:\n{config}")
-
-async def stopautobot(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    db.reference(f"users/{user_id}").update({'autobot': False})
-    await update.message.reply_text("Autobot stopped.")
-
-async def leaderboard(update: Update, context: CallbackContext):
-    all_users = db.reference("users").get()
-    if not all_users:
-        await update.message.reply_text("No users found.")
-        return
-    sorted_users = sorted(all_users.items(), key=lambda x: x[1].get('total_profit', 0), reverse=True)[:10]
-    leaderboard_text = "Leaderboard:\n"
-    for i, (uid, data) in enumerate(sorted_users, 1):
-        leaderboard_text += f"{i}. {data.get('name', 'Anonymous')} - Profit: {data.get('total_profit', 0)}\n"
-    await update.message.reply_text(leaderboard_text)
-
-async def trade(update: Update, context: CallbackContext):
-    user_id = str(update.effective_user.id)
-    if len(context.args) != 3:
-        await update.message.reply_text("Usage: /trade <BUY/SELL> <SYMBOL> <AMOUNT>")
-        return
-    direction, symbol, amount = context.args
-    amount = float(amount)
-    user_data = db.reference(f"users/{user_id}").get()
-    if not user_data:
-        await update.message.reply_text("User not found. Use /start first.")
-        return
-    price = 100.0  # Replace with real-time price fetch
-    trade_data = {
-        'direction': direction,
-        'symbol': symbol,
-        'amount': amount,
-        'price': price
+# === Firebase Logging ===
+def log_event(user_id, event_type, message_text, status="ok", error=None):
+    log_ref = db.reference(f"logs/{user_id}")
+    log_entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "event": event_type,
+        "message": message_text,
+        "status": status,
     }
-    db.reference(f"users/{user_id}/trades").push(trade_data)
-    await update.message.reply_text(f"Trade executed: {direction} {amount} {symbol} at ${price}")
+    if error:
+        log_entry["error"] = str(error)
+    log_ref.push(log_entry)
 
-application = ApplicationBuilder().token(token).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("help", help_command))
-application.add_handler(CommandHandler("register", register))
-application.add_handler(CommandHandler("balance", balance))
-application.add_handler(CommandHandler("autobot_config", autobot_config))
-application.add_handler(CommandHandler("autobot", autobot))
-application.add_handler(CommandHandler("setplatform", setplatform))
-application.add_handler(CommandHandler("setstrategy", setstrategy))
-application.add_handler(CommandHandler("setamount", setamount))
-application.add_handler(CommandHandler("setbase", setbase))
-application.add_handler(CommandHandler("showconfig", showconfig))
-application.add_handler(CommandHandler("stopautobot", stopautobot))
-application.add_handler(CommandHandler("leaderboard", leaderboard))
-application.add_handler(CommandHandler("trade", trade))
+# === Telegram Webhook Route with token decoding ===
+@app.post("/webhook/{token}")
+async def telegram_webhook(request: Request, token: str):
+    token = unquote(token)
+    if token != bot_token:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        data = await request.json()
+        update = Update.de_json(data, telegram_app.bot)
+        await telegram_app.process_update(update)  # Process update directly (no queue)
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid Telegram update")
+
+# === Fallback Legacy Webhook ===
+@app.post("/legacy/{token}")
+async def legacy_webhook(token: str, request: Request):
+    if token != bot_token:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    data = await request.json()
+    message = data.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    text = message.get("text", "")
+
+    if not chat_id:
+        return {"ok": False}
+
+    user_id = str(chat_id)
+    user = get_user(user_id)
+
+    if not user:
+        create_user(user_id)
+        send_alert("Welcome! Your crypto bot profile has been created.", chat_id)
+        log_event(user_id, "new_user", text)
+        return {"ok": True}
+
+    if text.startswith("/"):
+        try:
+            response = handle_command(text, user_id)
+            if response:
+                send_alert(response, chat_id)
+            log_event(user_id, "command", text)
+        except Exception as e:
+            send_alert(f"Command error for user {user_id}: {e}")
+            send_alert("Oops, there was an error handling your command.", chat_id)
+            log_event(user_id, "command", text, status="error", error=e)
+        return {"ok": True}
+
+    try:
+        if get_autobot_status(user_id):
+            run_auto_bot(user_id)
+            log_event(user_id, "autobot", text)
+    except Exception as e:
+        send_alert(f"AutoBot error for {user_id}: {e}")
+        send_alert("Error running AutoBot. Check your settings.", chat_id)
+        log_event(user_id, "autobot", text, status="error", error=e)
+
+    return {"ok": True}
+
+# === Root Endpoint ===
+@app.get("/")
+def root():
+    return {"message": "Crypto Bot is live"}
+
+# === Start bot background service on app startup ===
+@app.on_event("startup")
+async def start_bot():
+    logger.info("Setting Telegram webhook...")
+    await telegram_app.initialize()
+
+    # Register all bot commands so Telegram UI shows them
+    await telegram_app.bot.set_my_commands([
+        ("start", "Start the bot"),
+        ("help", "Show help info"),
+        ("trade", "Execute a manual trade"),
+        ("stopautobot", "Stop the auto trading bot"),
+        ("leaderboard", "Show the leaderboard"),
+        ("setbase", "Set your base currency"),
+        ("setplatform", "Choose Luno or Binance"),
+        ("setstrategy", "Select your strategy"),
+        ("setamount", "Set trade amount"),
+        ("showconfig", "View your current configuration"),
+    ])
+    logger.info("Bot commands registered.")
+
+    # Set webhook URL
+    await telegram_app.bot.set_webhook(
+        url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
+    )
+    logger.info("Webhook set successfully.")
