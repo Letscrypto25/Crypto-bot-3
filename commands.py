@@ -1,234 +1,263 @@
-import base64
-import json
-import os
 import logging
-import bcrypt
-import secrets
-from fastapi import FastAPI, Request, HTTPException, Header, Depends
-from telegram import Update
-from telegram.ext import Application, CommandHandler
-from firebase_admin import credentials, db, initialize_app
-from dotenv import load_dotenv
 from datetime import datetime
-import firebase_admin
-from urllib.parse import unquote
-
-from utils import send_alert, format_trade_message
-from commands import (
-    start, help_command, trade, stop_autobot,
-    get_leaderboard, set_base, set_platform, set_strategy,
-    set_amount, show_config
+from telegram import Update
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes
+from database import (
+get_user_data, save_trade,
+get_user, get_all_users, firebase_ref
 )
-from auto_bot import run_auto_bot
-from database import get_user, get_autobot_status, create_user
+from exchanges import get_price
 
-# === Load Environment Variables ===
-load_dotenv()
-firebase_encoded = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
-firebase_url = os.getenv("FIREBASE_DATABASE_URL")
-bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-fly_app = "crypto-bot-3-white-wind-424"
+logger = logging.getLogger(name)
 
-# === Firebase Init ===
-if not firebase_admin._apps:
-    decoded = base64.b64decode(firebase_encoded).decode("utf-8")
-    cred = credentials.Certificate(json.loads(decoded))
-    initialize_app(cred, {"databaseURL": firebase_url})
+/start
 
-# === Logging ===
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("crypto-bot")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+user_id = str(update.message.from_user.id)
+firebase_ref.child(user_id).update({
+"first_name": update.message.from_user.first_name,
+"active": False,
+"autobot": False
+})
+await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
 
-# === FastAPI App ===
-app = FastAPI()
+/help
 
-# === Telegram Bot Init ===
-telegram_app = Application.builder().token(bot_token).build()
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+help_text = (
+"Available Commands:\n"
+"/start - Verify and activate your account\n"
+"/register <exchange> <api_key> <secret>\n"
+"/balance - Check your balance\n"
+"/trade <BUY/SELL> <SYMBOL> <AMOUNT>\n"
+"/autobot enable|disable\n"
+"/autobot_config <key> <value>\n"
+"/leaderboard - Show top profits\n"
+"/setplatform <binance|luno>\n"
+"/setstrategy <strategy_name>\n"
+"/setamount <amount>\n"
+"/setbase <currency>\n"
+"/showconfig - View current configuration\n"
+"/help - Show this message"
+)
+await update.message.reply_text(help_text)
 
-# === Register Handlers ===
-telegram_app.add_handler(CommandHandler("start", start))
-telegram_app.add_handler(CommandHandler("help", help_command))
-telegram_app.add_handler(CommandHandler("trade", trade))
-telegram_app.add_handler(CommandHandler("stopautobot", stop_autobot))
-telegram_app.add_handler(CommandHandler("leaderboard", get_leaderboard))
-telegram_app.add_handler(CommandHandler("setbase", set_base))
-telegram_app.add_handler(CommandHandler("setplatform", set_platform))
-telegram_app.add_handler(CommandHandler("setstrategy", set_strategy))
-telegram_app.add_handler(CommandHandler("setamount", set_amount))
-telegram_app.add_handler(CommandHandler("showconfig", show_config))
+/register
 
-# === Firebase Logging ===
-def log_event(user_id, event_type, message_text, status="ok", error=None):
-    log_ref = db.reference(f"logs/{user_id}")
-    log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "event": event_type,
-        "message": message_text,
-        "status": status,
-    }
-    if error:
-        log_entry["error"] = str(error)
-    log_ref.push(log_entry)
+async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
+user_id = str(update.effective_user.id)
 
-# === API Security ===
-def get_user_by_token(token: str):
-    users_ref = db.reference("users")
-    all_users = users_ref.get()
-    if not all_users:
-        return None
-    for uid, data in all_users.items():
-        if data.get("token") == token:
-            return {"user_id": uid, **data}
-    return None
+try:  
+    if len(context.args) != 3:  
+        await update.message.reply_text("Usage: /register <exchange> <api_key> <secret>")  
+        return  
 
-def verify_token(authorization: str = Header(...)):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid token format")
-    token = authorization[7:]
-    user = get_user_by_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return user
+    exchange, api_key, secret = context.args  
+    firebase_ref.child(user_id).update({  
+        "exchange": exchange.lower(),  
+        "api_key": api_key,  
+        "secret": secret  
+    })  
+    await update.message.reply_text("Registered successfully with your exchange details.")  
+except Exception as e:  
+    logger.exception("register error")  
+    await update.message.reply_text("An error occurred during registration.")
 
-# === Register API ===
-@app.post("/api/register")
-async def register(request: Request):
-    body = await request.json()
-    username = body.get("username")
-    password = body.get("password")
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and password required")
+/trade
 
-    users_ref = db.reference("users")
-    existing = users_ref.order_by_child("username").equal_to(username).get()
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
+async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
+user_id = str(update.message.from_user.id)
+user_data = get_user_data(user_id)
 
-    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    token = secrets.token_hex(32)
+if not user_data or 'exchange' not in user_data:  
+    await update.message.reply_text("You're not registered. Use /register first.")  
+    return  
 
-    new_user = users_ref.push({
-        "username": username,
-        "password": hashed,
-        "token": token,
-        "created_at": datetime.utcnow().isoformat()
-    })
-    return {"message": "User registered", "token": token}
+try:  
+    action = context.args[0].upper()  
+    symbol = context.args[1].upper()  
+    amount = float(context.args[2])  
+except (IndexError, ValueError):  
+    await update.message.reply_text("Usage: /trade <BUY/SELL> <SYMBOL> <AMOUNT>")  
+    return  
 
-# === Login API ===
-@app.post("/api/login")
-async def login(request: Request):
-    body = await request.json()
-    username = body.get("username")
-    password = body.get("password")
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and password required")
+try:  
+    exchange = user_data.get("exchange")  
+    price = get_price(user_id=user_id, source=exchange, symbol=symbol)  
 
-    users_ref = db.reference("users")
-    users = users_ref.order_by_child("username").equal_to(username).get()
-    for uid, data in users.items():
-        if bcrypt.checkpw(password.encode(), data["password"].encode()):
-            new_token = secrets.token_hex(32)
-            users_ref.child(uid).update({"token": new_token})
-            return {"message": "Login successful", "token": new_token}
-    raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not price:  
+        await update.message.reply_text("Failed to fetch price.")  
+        return  
 
-# === Telegram Webhook Route with token decoding ===
-@app.post("/webhook/{token}")
-async def telegram_webhook(request: Request, token: str):
-    token = unquote(token)
-    if token != bot_token:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    trade_record = {  
+        "symbol": symbol,  
+        "amount": amount,  
+        "side": action,  
+        "price": price,  
+        "timestamp": datetime.utcnow().isoformat()  
+    }  
+    save_trade(user_id, trade_record)  
+    await update.message.reply_text(f"{action} {amount} {symbol} at {price} — Executed")  
 
-    try:
-        data = await request.json()
-        update = Update.de_json(data, telegram_app.bot)
-        await telegram_app.update_queue.put_nowait(update)
-        return {"ok": True}
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        raise HTTPException(status_code=400, detail="Invalid Telegram update")
+except Exception as e:  
+    logger.exception("Trade error")  
+    await update.message.reply_text(f"Trade failed: {e}")
 
-# === Fallback Legacy Webhook ===
-@app.post("/legacy/{token}")
-async def legacy_webhook(token: str, request: Request):
-    if token != bot_token:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+/autobot enable|disable
 
-    data = await request.json()
-    message = data.get("message", {})
-    chat_id = message.get("chat", {}).get("id")
-    text = message.get("text", "")
+async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+if len(context.args) != 1 or context.args[0].lower() not in ["enable", "disable"]:
+await update.message.reply_text("Usage: /autobot enable|disable")
+return
 
-    if not chat_id:
-        return {"ok": False}
+enable = context.args[0].lower() == "enable"  
+    firebase_ref.child(user_id).update({"autobot": enable})  
+    await update.message.reply_text(f"Autobot {'enabled' if enable else 'disabled'}.")  
+except Exception as e:  
+    logger.exception("autobot error")  
+    await update.message.reply_text("An error occurred while toggling the autobot.")
 
-    user_id = str(chat_id)
-    user = get_user(user_id)
+/autobot_config <key> <value>
 
-    if not user:
-        create_user(user_id)
-        send_alert("Welcome! Your crypto bot profile has been created.", chat_id)
-        log_event(user_id, "new_user", text)
-        return {"ok": True}
+async def autobot_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+if len(context.args) != 2:
+await update.message.reply_text("Usage: /autobot_config <key> <value>")
+return
+key, value = context.args
+firebase_ref.child(user_id).update({f"autobot_config_{key}": value})
+await update.message.reply_text(f"Autobot config '{key}' set to '{value}'.")
+except Exception as e:
+logger.exception("autobot_config error")
+await update.message.reply_text("An error occurred while setting autobot config.")
 
-    if text.startswith("/"):
-        try:
-            response = handle_command(text, user_id)
-            if response:
-                send_alert(response, chat_id)
-            log_event(user_id, "command", text)
-        except Exception as e:
-            send_alert(f"Command error for user {user_id}: {e}")
-            send_alert("Oops, there was an error handling your command.", chat_id)
-            log_event(user_id, "command", text, status="error", error=e)
-        return {"ok": True}
+/stopautobot (optional, can be replaced by /autobot disable)
 
-    try:
-        if get_autobot_status(user_id):
-            run_auto_bot(user_id)
-            log_event(user_id, "autobot", text)
-    except Exception as e:
-        send_alert(f"AutoBot error for {user_id}: {e}")
-        send_alert("Error running AutoBot. Check your settings.", chat_id)
-        log_event(user_id, "autobot", text, status="error", error=e)
+async def stop_autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+user = get_user(user_id)
+if user:
+firebase_ref.child(user_id).update({"autobot": False})
+await update.message.reply_text("Autobot disabled.")
+else:
+await update.message.reply_text("Use /start to register.")
+except Exception as e:
+logger.exception("stop_autobot error")
+await update.message.reply_text("An error occurred while stopping the autobot.")
 
-    return {"ok": True}
+/leaderboard
 
-# === Root Endpoint ===
-@app.get("/")
-def root():
-    return {"message": "Crypto Bot is live"}
+async def get_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+leaderboard = get_all_users()
+if leaderboard:
+sorted_users = sorted(leaderboard.items(), key=lambda x: x[1].get("total_profit", 0), reverse=True)
+message = "Leaderboard\n\n"
+for i, (uid, data) in enumerate(sorted_users[:10], start=1):
+name = data.get("first_name", "User")
+profit = data.get("total_profit", 0)
+message += f"{i}. {name} — ${profit:.2f}\n"
+await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+else:
+await update.message.reply_text("No users found.")
+except Exception as e:
+logger.exception("Leaderboard error")
+await update.message.reply_text("An error occurred while fetching the leaderboard.")
 
-# === Start bot background service on app startup ===
-@app.on_event("startup")
-async def start_bot():
-    logger.info("Starting Telegram bot...")
-    await telegram_app.initialize()
-    await telegram_app.start()
+/setbase <currency>
 
-    await telegram_app.bot.set_my_commands([
-        ("start", "Start the bot"),
-        ("help", "Show help info"),
-        ("trade", "Execute a manual trade"),
-        ("stopautobot", "Stop the auto trading bot"),
-        ("leaderboard", "Show the leaderboard"),
-        ("setbase", "Set your base currency"),
-        ("setplatform", "Choose Luno or Binance"),
-        ("setstrategy", "Select your strategy"),
-        ("setamount", "Set trade amount"),
-        ("showconfig", "View your current configuration"),
-    ])
+async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+user = get_user(user_id)
+if user and len(context.args) == 1:
+base = context.args[0].upper()
+firebase_ref.child(user_id).update({"base_currency": base})
+await update.message.reply_text(f"Base currency set to {base}.")
+else:
+await update.message.reply_text("Usage: /setbase BTC")
+except Exception as e:
+logger.exception("set_base error")
+await update.message.reply_text("An error occurred while setting base currency.")
 
-    await telegram_app.bot.set_webhook(
-        url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
-    )
-    logger.info("Webhook set successfully.")
+/setplatform <binance|luno>
 
-# === Shutdown Telegram bot cleanly ===
-@app.on_event("shutdown")
-async def stop_bot():
-    logger.info("Stopping Telegram bot...")
-    await telegram_app.shutdown()
+async def set_platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+user = get_user(user_id)
+if user and len(context.args) == 1:
+platform = context.args[0].lower()
+if platform in ["binance", "luno"]:
+firebase_ref.child(user_id).update({"platform": platform})
+await update.message.reply_text(f"Trading platform set to {platform}.")
+else:
+await update.message.reply_text("Supported platforms: binance, luno")
+else:
+await update.message.reply_text("Usage: /setplatform binance")
+except Exception as e:
+logger.exception("set_platform error")
+await update.message.reply_text("An error occurred while setting platform.")
 
+/setstrategy <strategy_name>
+
+async def set_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+user = get_user(user_id)
+if user and len(context.args) == 1:
+strategy = context.args[0].lower()
+firebase_ref.child(user_id).update({"strategy": strategy})
+await update.message.reply_text(f"Strategy set to {strategy}.")
+else:
+await update.message.reply_text("Usage: /setstrategy <strategy_name>")
+except Exception as e:
+logger.exception("set_strategy error")
+await update.message.reply_text("An error occurred while setting strategy.")
+
+/setamount <amount>
+
+async def set_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+user = get_user(user_id)
+if user and len(context.args) == 1:
+try:
+amount = float(context.args[0])
+firebase_ref.child(user_id).update({"trade_amount": amount})
+await update.message.reply_text(f"Trade amount set to ${amount:.2f}.")
+except ValueError:
+await update.message.reply_text("Please enter a valid number.")
+else:
+await update.message.reply_text("Usage: /setamount 50.0")
+except Exception as e:
+logger.exception("set_amount error")
+await update.message.reply_text("An error occurred while setting amount.")
+
+/showconfig
+
+async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+try:
+user_id = str(update.effective_user.id)
+user_data = firebase_ref.child(user_id).get()
+if user_data:
+config_msg = (
+f"Current Config:\n"
+f"Platform: {user_data.get('platform', 'Not set')}\n"
+f"Strategy: {user_data.get('strategy', 'Not set')}\n"
+f"Trade Amount: ${user_data.get('trade_amount', 'Not set')}\n"
+f"Autobot: {'Enabled' if user_data.get('autobot', False) else 'Disabled'}\n"
+f"Status: {'Running' if user_data.get('active', False) else 'Stopped'}"
+)
+await update.message.reply_text(config_msg)
+else:
+await update.message.reply_text("No config found. Use /start to register.")
+except Exception as e:
+logger.exception("show_config error")
+await update.message.reply_text("Error fetching config.")
 
