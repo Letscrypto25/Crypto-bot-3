@@ -2,8 +2,7 @@ import base64
 import json
 import os
 import logging
-import secrets
-from fastapi import FastAPI, Request, HTTPException, Header, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends
 from telegram import Update
 from telegram.ext import Application, CommandHandler
 from firebase_admin import credentials, db, initialize_app
@@ -11,6 +10,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import firebase_admin
 from urllib.parse import unquote
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from utils import send_alert, format_trade_message
 from commands import (
@@ -19,7 +19,7 @@ from commands import (
     set_amount, show_config
 )
 from auto_bot import run_auto_bot
-from database import get_user, get_autobot_status, create_user, get_user_by_username, verify_password
+from database import get_user, get_autobot_status, create_user
 
 # === Load Environment Variables ===
 load_dotenv()
@@ -40,6 +40,7 @@ logger = logging.getLogger("crypto-bot")
 
 # === FastAPI App ===
 app = FastAPI()
+security = HTTPBearer()
 
 # === Telegram Bot Init ===
 telegram_app = Application.builder().token(bot_token).build()
@@ -69,65 +70,13 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Session Auth Helper ===
-def get_user_from_token(authorization: str = Header(...)):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=403, detail="Invalid token format")
-    token = authorization[7:]
-    session_ref = db.reference(f"sessions/{token}")
-    session = session_ref.get()
-    if not session:
-        raise HTTPException(status_code=403, detail="Invalid or expired token")
-    return session["user_id"]
-
-# === REST API Endpoints ===
-@app.post("/register")
-async def register(request: Request):
-    data = await request.json()
-    username = data.get("username")
-    password = data.get("password")
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and password required")
-    existing = get_user_by_username(username)
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
-
-    user_id = str(secrets.token_hex(8))
-    db.reference(f"users/{user_id}").set({
-        "username": username,
-        "password": password,  # Use hashing in production
-    })
-    return {"message": "User registered", "user_id": user_id}
-
-@app.post("/login")
-async def login(request: Request):
-    data = await request.json()
-    username = data.get("username")
-    password = data.get("password")
-    user = get_user_by_username(username)
-    if not user or user.get("password") != password:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    session_token = secrets.token_urlsafe(32)
-    db.reference(f"sessions/{session_token}").set({
-        "user_id": user["id"],
-        "created": datetime.utcnow().isoformat()
-    })
-    return {"message": "Login successful", "token": session_token}
-
-@app.get("/me")
-async def get_profile(user_id: str = Depends(get_user_from_token)):
-    user = get_user(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"user_id": user_id, "username": user.get("username")}
-
-# === Telegram Webhook Route (unchanged) ===
+# === Telegram Webhook Route with token decoding ===
 @app.post("/webhook/{token}")
 async def telegram_webhook(request: Request, token: str):
     token = unquote(token)
     if token != bot_token:
         raise HTTPException(status_code=403, detail="Unauthorized")
+
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_app.bot)
@@ -137,6 +86,7 @@ async def telegram_webhook(request: Request, token: str):
         logger.error(f"Webhook error: {e}")
         raise HTTPException(status_code=400, detail="Invalid Telegram update")
 
+# === Fallback Legacy Webhook ===
 @app.post("/legacy/{token}")
 async def legacy_webhook(token: str, request: Request):
     if token != bot_token:
@@ -193,6 +143,7 @@ async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
     await telegram_app.start()
+
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
         ("help", "Show help info"),
@@ -205,6 +156,7 @@ async def start_bot():
         ("setamount", "Set trade amount"),
         ("showconfig", "View your current configuration"),
     ])
+
     await telegram_app.bot.set_webhook(
         url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
@@ -215,3 +167,6 @@ async def start_bot():
 async def stop_bot():
     logger.info("Stopping Telegram bot...")
     await telegram_app.shutdown()
+
+
+
