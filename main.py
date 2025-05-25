@@ -78,7 +78,7 @@ async def telegram_webhook(request: Request, token: str):
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_app.bot)
-        await telegram_app.process_update(update)  # Process update directly (no queue)
+        await telegram_app.update_queue.put_nowait(update)  # Correct way to handle update
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -138,10 +138,10 @@ def root():
 # === Start bot background service on app startup ===
 @app.on_event("startup")
 async def start_bot():
-    logger.info("Setting Telegram webhook...")
+    logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
+    await telegram_app.start()
 
-    # Register all bot commands so Telegram UI shows them
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
         ("help", "Show help info"),
@@ -154,10 +154,14 @@ async def start_bot():
         ("setamount", "Set trade amount"),
         ("showconfig", "View your current configuration"),
     ])
-    logger.info("Bot commands registered.")
 
-    # Set webhook URL
     await telegram_app.bot.set_webhook(
         url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
     logger.info("Webhook set successfully.")
+
+# === Shutdown Telegram bot cleanly ===
+@app.on_event("shutdown")
+async def stop_bot():
+    logger.info("Stopping Telegram bot...")
+    await telegram_app.shutdown()
