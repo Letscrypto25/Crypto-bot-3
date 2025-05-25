@@ -1,16 +1,15 @@
 import base64
 import json
-import os 
+import os
 import logging
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler
-)
+from telegram.ext import Application, CommandHandler
 from firebase_admin import credentials, db, initialize_app
 from dotenv import load_dotenv
 from datetime import datetime
 import firebase_admin
+from urllib.parse import unquote
 
 from utils import send_alert, format_trade_message
 from commands import (
@@ -69,9 +68,13 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Telegram Webhook Route (STATIC) ===
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
+# === Telegram Webhook Route with token decoding ===
+@app.post("/webhook/{token}")
+async def telegram_webhook(request: Request, token: str):
+    token = unquote(token)
+    if token != bot_token:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_app.bot)
@@ -138,6 +141,6 @@ async def start_bot():
     logger.info("Setting Telegram webhook...")
     await telegram_app.initialize()
     await telegram_app.bot.set_webhook(
-        url=f"https://{fly_app}.fly.dev/webhook"
+        url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
     logger.info("Webhook set successfully.")
