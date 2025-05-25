@@ -1,200 +1,206 @@
+import os
 import logging
-from datetime import datetime
+import json
+import base64
+import firebase_admin
+from firebase_admin import credentials, db
+from flask import Flask, request
+import requests
+from binance.client import Client as BinanceClient
+from binance.exceptions import BinanceAPIException
 from telegram import Update
-from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
-from database import (
-    get_user_data, save_trade,
-    get_user, get_all_users, firebase_ref
-)
-from exchanges import get_price
+from telegram.ext import CommandHandler, CallbackContext, ApplicationBuilder
 
-logger = logging.getLogger(__name__)
+# Firebase initialization
+with open("firebase_encoded.txt", "r") as f:
+    encoded = f.read()
+cred = credentials.Certificate(json.loads(base64.b64decode(encoded)))
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://cryptotest-dc7f0-default-rtdb.firebaseio.com/'
+})
 
-# /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    firebase_ref.child(user_id).update({
-        "first_name": update.message.from_user.first_name,
-        "active": False,
-        "autobot": False
-    })
+token = os.environ.get("BOT_TOKEN")
+OWNER_ID = os.environ.get("OWNER_ID")
+app = Flask(__name__)
+
+async def start(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    ref = db.reference(f"users/{user_id}")
+    if not ref.get():
+        ref.set({
+            'name': update.effective_user.first_name,
+            'active': False,
+            'autobot': False,
+            'total_profit': 0
+        })
     await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
 
-# /help
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = (
-        "Available Commands:\n"
-        "/start - Verify and activate your account\n"
-        "/register <exchange> <api_key> <secret>\n"
-        "/balance - Check your balance\n"
-        "/trade <BUY/SELL> <SYMBOL> <AMOUNT>\n"
-        "/autobot enable|disable\n"
-        "/autobot_config <key> <value>\n"
-        "/leaderboard - Show top profits\n"
-        "/setplatform <binance|luno>\n"
-        "/setstrategy <strategy_name>\n"
-        "/setamount <amount>\n"
-        "/setbase <currency>\n"
-        "/showconfig - View current configuration\n"
-        "/help - Show this message"
-    )
-    await update.message.reply_text(help_text)
+async def help_command(update: Update, context: CallbackContext):
+    await update.message.reply_text("""
+/start - Start the bot
+/help - Show this help message
+/register <exchange> <api_key> <secret>
+/setplatform <binance|luno>
+/setstrategy <strategy_name>
+/setamount <amount>
+/setbase <currency>
+/trade <BUY/SELL> <SYMBOL> <AMOUNT>
+/balance - Get your exchange balance
+/autobot enable|disable
+/autobot_config <key> <value>
+/showconfig - Show your bot settings
+/leaderboard - Show top users
+/stopautobot - Disable your trading bot
+""")
 
-# /trade
-async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    user_data = get_user_data(user_id)
-
-    if not user_data or 'exchange' not in user_data:
-        await update.message.reply_text("You're not registered. Use /register first.")
+async def register(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    if len(context.args) != 3:
+        await update.message.reply_text("Usage: /register <exchange> <api_key> <secret>")
         return
+    exchange, api_key, api_secret = context.args
+    ref = db.reference(f"users/{user_id}")
+    ref.update({
+        'exchange': exchange,
+        'api_key': api_key,
+        'api_secret': api_secret
+    })
+    await update.message.reply_text(f"Exchange credentials saved for {exchange}.")
 
+async def balance(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    user_data = db.reference(f"users/{user_id}").get()
+    if not user_data or 'exchange' not in user_data:
+        await update.message.reply_text("Please register your exchange first using /register.")
+        return
+    if user_data['exchange'] == 'binance':
+        client = BinanceClient(user_data['api_key'], user_data['api_secret'])
+        try:
+            account_info = client.get_account()
+            balances = [b for b in account_info['balances'] if float(b['free']) > 0]
+            message = "Your balances:\n" + "\n".join([f"{b['asset']}: {b['free']}" for b in balances])
+        except BinanceAPIException as e:
+            message = f"Error fetching balance: {e.message}"
+        await update.message.reply_text(message)
+    else:
+        await update.message.reply_text("Exchange not supported yet.")
+
+async def autobot_config(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    if len(context.args) != 2:
+        await update.message.reply_text("Usage: /autobot_config <key> <value>")
+        return
+    key, value = context.args
+    ref = db.reference(f"users/{user_id}/autobot_config")
+    ref.update({key: value})
+    await update.message.reply_text(f"Autobot config updated: {key} = {value}")
+
+async def autobot(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    if not context.args or context.args[0] not in ['enable', 'disable']:
+        await update.message.reply_text("Usage: /autobot enable|disable")
+        return
+    enable = context.args[0] == 'enable'
+    db.reference(f"users/{user_id}").update({'autobot': enable})
+    await update.message.reply_text(f"Autobot {'enabled' if enable else 'disabled'}.")
+
+async def setplatform(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    if not context.args:
+        await update.message.reply_text("Please specify a platform: binance or luno")
+        return
+    platform = context.args[0].lower()
+    if platform in ['binance', 'luno']:
+        db.reference(f"users/{user_id}").update({'platform': platform})
+        await update.message.reply_text(f"Platform set to {platform}.")
+    else:
+        await update.message.reply_text("Unsupported platform.")
+
+async def setstrategy(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    if not context.args:
+        await update.message.reply_text("Please provide a strategy name.")
+        return
+    strategy = context.args[0]
+    db.reference(f"users/{user_id}").update({'strategy': strategy})
+    await update.message.reply_text(f"Strategy set to {strategy}.")
+
+async def setamount(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
     try:
-        action = context.args[0].upper()
-        symbol = context.args[1].upper()
-        amount = float(context.args[2])
-    except (IndexError, ValueError):
+        amount = float(context.args[0])
+        db.reference(f"users/{user_id}").update({'trade_amount': amount})
+        await update.message.reply_text(f"Trade amount set to {amount}.")
+    except (ValueError, IndexError):
+        await update.message.reply_text("Usage: /setamount <amount>")
+
+async def setbase(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    if not context.args:
+        await update.message.reply_text("Please provide a base currency.")
+        return
+    base_currency = context.args[0]
+    db.reference(f"users/{user_id}").update({'base_currency': base_currency})
+    await update.message.reply_text(f"Base currency set to {base_currency}.")
+
+async def showconfig(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    user_data = db.reference(f"users/{user_id}").get()
+    if not user_data:
+        await update.message.reply_text("User not registered.")
+        return
+    config = "\n".join([f"{k}: {v}" for k, v in user_data.items()])
+    await update.message.reply_text(f"Your configuration:\n{config}")
+
+async def stopautobot(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    db.reference(f"users/{user_id}").update({'autobot': False})
+    await update.message.reply_text("Autobot stopped.")
+
+async def leaderboard(update: Update, context: CallbackContext):
+    all_users = db.reference("users").get()
+    if not all_users:
+        await update.message.reply_text("No users found.")
+        return
+    sorted_users = sorted(all_users.items(), key=lambda x: x[1].get('total_profit', 0), reverse=True)[:10]
+    leaderboard_text = "Leaderboard:\n"
+    for i, (uid, data) in enumerate(sorted_users, 1):
+        leaderboard_text += f"{i}. {data.get('name', 'Anonymous')} - Profit: {data.get('total_profit', 0)}\n"
+    await update.message.reply_text(leaderboard_text)
+
+async def trade(update: Update, context: CallbackContext):
+    user_id = str(update.effective_user.id)
+    if len(context.args) != 3:
         await update.message.reply_text("Usage: /trade <BUY/SELL> <SYMBOL> <AMOUNT>")
         return
+    direction, symbol, amount = context.args
+    amount = float(amount)
+    user_data = db.reference(f"users/{user_id}").get()
+    if not user_data:
+        await update.message.reply_text("User not found. Use /start first.")
+        return
+    price = 100.0  # Replace with real-time price fetch
+    trade_data = {
+        'direction': direction,
+        'symbol': symbol,
+        'amount': amount,
+        'price': price
+    }
+    db.reference(f"users/{user_id}/trades").push(trade_data)
+    await update.message.reply_text(f"Trade executed: {direction} {amount} {symbol} at ${price}")
 
-    try:
-        exchange = user_data.get("exchange")
-        price = get_price(user_id=user_id, source=exchange, symbol=symbol)
-
-        if not price:
-            await update.message.reply_text("Failed to fetch price.")
-            return
-
-        trade_record = {
-            "symbol": symbol,
-            "amount": amount,
-            "side": action,
-            "price": price,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        save_trade(user_id, trade_record)
-        await update.message.reply_text(f"{action} {amount} {symbol} at {price} — Executed")
-
-    except Exception as e:
-        logger.exception("Trade error")
-        await update.message.reply_text(f"Trade failed: {e}")
-
-# /stopautobot
-async def stop_autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user_id = str(update.effective_user.id)
-        user = get_user(user_id)
-        if user:
-            firebase_ref.child(user_id).update({"autobot": False})
-            await update.message.reply_text("Autobot disabled.")
-        else:
-            await update.message.reply_text("Use /start to register.")
-    except Exception as e:
-        logger.exception("stop_autobot error")
-        await update.message.reply_text("An error occurred while stopping the autobot.")
-
-# /leaderboard
-async def get_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        leaderboard = get_all_users()
-        if leaderboard:
-            sorted_users = sorted(leaderboard.items(), key=lambda x: x[1].get("total_profit", 0), reverse=True)
-            message = "*Leaderboard*\n\n"
-            for i, (uid, data) in enumerate(sorted_users[:10], start=1):
-                name = data.get("first_name", "User")
-                profit = data.get("total_profit", 0)
-                message += f"{i}. {name} — ${profit:.2f}\n"
-            await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text("No users found.")
-    except Exception as e:
-        logger.exception("Leaderboard error")
-        await update.message.reply_text("An error occurred while fetching the leaderboard.")
-
-# /setbase
-async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user_id = str(update.effective_user.id)
-        user = get_user(user_id)
-        if user and len(context.args) == 1:
-            base = context.args[0].upper()
-            firebase_ref.child(user_id).update({"base_currency": base})
-            await update.message.reply_text(f"Base currency set to {base}.")
-        else:
-            await update.message.reply_text("Usage: /setbase BTC")
-    except Exception as e:
-        logger.exception("set_base error")
-        await update.message.reply_text("An error occurred while setting base currency.")
-
-# /setplatform
-async def set_platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user_id = str(update.effective_user.id)
-        user = get_user(user_id)
-        if user and len(context.args) == 1:
-            platform = context.args[0].lower()
-            if platform in ["binance", "luno"]:
-                firebase_ref.child(user_id).update({"platform": platform})
-                await update.message.reply_text(f"Trading platform set to {platform}.")
-            else:
-                await update.message.reply_text("Supported platforms: binance, luno")
-        else:
-            await update.message.reply_text("Usage: /setplatform binance")
-    except Exception as e:
-        logger.exception("set_platform error")
-        await update.message.reply_text("An error occurred while setting platform.")
-
-# /setstrategy
-async def set_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user_id = str(update.effective_user.id)
-        user = get_user(user_id)
-        if user and len(context.args) == 1:
-            strategy = context.args[0].lower()
-            firebase_ref.child(user_id).update({"strategy": strategy})
-            await update.message.reply_text(f"Strategy set to {strategy}.")
-        else:
-            await update.message.reply_text("Usage: /setstrategy <strategy_name>")
-    except Exception as e:
-        logger.exception("set_strategy error")
-        await update.message.reply_text("An error occurred while setting strategy.")
-
-# /setamount
-async def set_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user_id = str(update.effective_user.id)
-        user = get_user(user_id)
-        if user and len(context.args) == 1:
-            try:
-                amount = float(context.args[0])
-                firebase_ref.child(user_id).update({"trade_amount": amount})
-                await update.message.reply_text(f"Trade amount set to ${amount:.2f}.")
-            except ValueError:
-                await update.message.reply_text("Please enter a valid number.")
-        else:
-            await update.message.reply_text("Usage: /setamount 50.0")
-    except Exception as e:
-        logger.exception("set_amount error")
-        await update.message.reply_text("An error occurred while setting amount.")
-
-# /showconfig
-async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user_id = str(update.effective_user.id)
-        user_data = firebase_ref.child(user_id).get()
-        if user_data:
-            config_msg = (
-                f"Current Config:\n"
-                f"Platform: {user_data.get('platform', 'Not set')}\n"
-                f"Strategy: {user_data.get('strategy', 'Not set')}\n"
-                f"Trade Amount: ${user_data.get('trade_amount', 'Not set')}\n"
-                f"Autobot: {'Enabled' if user_data.get('autobot', False) else 'Disabled'}\n"
-                f"Status: {'Running' if user_data.get('active', False) else 'Stopped'}"
-            )
-            await update.message.reply_text(config_msg)
-        else:
-            await update.message.reply_text("No config found. Use /start to register.")
-    except Exception as e:
-        logger.exception("show_config error")
-        await update.message.reply_text("Error fetching config.")
+application = ApplicationBuilder().token(token).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("help", help_command))
+application.add_handler(CommandHandler("register", register))
+application.add_handler(CommandHandler("balance", balance))
+application.add_handler(CommandHandler("autobot_config", autobot_config))
+application.add_handler(CommandHandler("autobot", autobot))
+application.add_handler(CommandHandler("setplatform", setplatform))
+application.add_handler(CommandHandler("setstrategy", setstrategy))
+application.add_handler(CommandHandler("setamount", setamount))
+application.add_handler(CommandHandler("setbase", setbase))
+application.add_handler(CommandHandler("showconfig", showconfig))
+application.add_handler(CommandHandler("stopautobot", stopautobot))
+application.add_handler(CommandHandler("leaderboard", leaderboard))
+application.add_handler(CommandHandler("trade", trade))
