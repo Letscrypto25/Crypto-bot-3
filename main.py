@@ -68,6 +68,43 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
+# === Handle Command for Legacy Webhook ===
+async def handle_command(text, user_id, chat_id):
+    command = text.strip().split()[0].lower()
+    context_args = text.strip().split()[1:]
+
+    class DummyContext:
+        def __init__(self, args):
+            self.args = args
+
+    class DummyUpdate:
+        def __init__(self, user_id, chat_id):
+            self.effective_user = type("User", (), {"id": int(user_id)})
+            self.effective_chat = type("Chat", (), {"id": int(chat_id)})
+            self.message = type("Message", (), {"text": text})
+
+    update = DummyUpdate(user_id, chat_id)
+    context = DummyContext(context_args)
+
+    command_map = {
+        "/start": start,
+        "/help": help_command,
+        "/trade": trade,
+        "/stopautobot": stop_autobot,
+        "/leaderboard": get_leaderboard,
+        "/setbase": set_base,
+        "/setplatform": set_platform,
+        "/setstrategy": set_strategy,
+        "/setamount": set_amount,
+        "/showconfig": show_config
+    }
+
+    handler = command_map.get(command)
+    if handler:
+        await handler(update, context)
+        return f"Executed {command}"
+    return "Unknown command."
+
 # === Telegram Webhook Route with token decoding ===
 @app.post("/webhook/{token}")
 async def telegram_webhook(request: Request, token: str):
@@ -109,12 +146,12 @@ async def legacy_webhook(token: str, request: Request):
 
     if text.startswith("/"):
         try:
-            response = handle_command(text, user_id)
+            response = await handle_command(text, user_id, chat_id)
             if response:
                 send_alert(response, chat_id)
             log_event(user_id, "command", text)
         except Exception as e:
-            send_alert(f"Command error for user {user_id}: {e}")
+            send_alert(f"Command error for user {user_id}: {e}", chat_id)
             send_alert("Oops, there was an error handling your command.", chat_id)
             log_event(user_id, "command", text, status="error", error=e)
         return {"ok": True}
@@ -124,7 +161,7 @@ async def legacy_webhook(token: str, request: Request):
             run_auto_bot(user_id)
             log_event(user_id, "autobot", text)
     except Exception as e:
-        send_alert(f"AutoBot error for {user_id}: {e}")
+        send_alert(f"AutoBot error for {user_id}: {e}", chat_id)
         send_alert("Error running AutoBot. Check your settings.", chat_id)
         log_event(user_id, "autobot", text, status="error", error=e)
 
