@@ -100,7 +100,36 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("Trade error")
         await update.message.reply_text(f"Trade failed: {e}")
 
-# /stopautobot
+# /autobot enable|disable
+async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        user_id = str(update.effective_user.id)
+        if len(context.args) != 1 or context.args[0].lower() not in ["enable", "disable"]:
+            await update.message.reply_text("Usage: /autobot enable|disable")
+            return
+
+        enable = context.args[0].lower() == "enable"
+        firebase_ref.child(user_id).update({"autobot": enable})
+        await update.message.reply_text(f"Autobot {'enabled' if enable else 'disabled'}.")
+    except Exception as e:
+        logger.exception("autobot error")
+        await update.message.reply_text("An error occurred while toggling the autobot.")
+
+# /autobot_config <key> <value>
+async def autobot_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        user_id = str(update.effective_user.id)
+        if len(context.args) != 2:
+            await update.message.reply_text("Usage: /autobot_config <key> <value>")
+            return
+        key, value = context.args
+        firebase_ref.child(user_id).update({f"autobot_config_{key}": value})
+        await update.message.reply_text(f"Autobot config '{key}' set to '{value}'.")
+    except Exception as e:
+        logger.exception("autobot_config error")
+        await update.message.reply_text("An error occurred while setting autobot config.")
+
+# /stopautobot (optional, can be replaced by /autobot disable)
 async def stop_autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
@@ -132,7 +161,7 @@ async def get_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("Leaderboard error")
         await update.message.reply_text("An error occurred while fetching the leaderboard.")
 
-# /setbase
+# /setbase <currency>
 async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
@@ -147,7 +176,7 @@ async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("set_base error")
         await update.message.reply_text("An error occurred while setting base currency.")
 
-# /setplatform
+# /setplatform <binance|luno>
 async def set_platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
@@ -165,7 +194,7 @@ async def set_platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("set_platform error")
         await update.message.reply_text("An error occurred while setting platform.")
 
-# /setstrategy
+# /setstrategy <strategy_name>
 async def set_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
@@ -180,7 +209,7 @@ async def set_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("set_strategy error")
         await update.message.reply_text("An error occurred while setting strategy.")
 
-# /setamount
+# /setamount <amount>
 async def set_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
