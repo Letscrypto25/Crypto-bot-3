@@ -1,9 +1,9 @@
-# === IMPORTS ===
 import base64
 import json
 import os
 import logging
-from fastapi import FastAPI, Request, HTTPException
+import secrets
+from fastapi import FastAPI, Request, HTTPException, Header, Depends
 from telegram import Update
 from telegram.ext import Application, CommandHandler
 from firebase_admin import credentials, db, initialize_app
@@ -19,7 +19,7 @@ from commands import (
     set_amount, show_config
 )
 from auto_bot import run_auto_bot
-from database import get_user, get_autobot_status, create_user, update_user_config
+from database import get_user, get_autobot_status, create_user, get_user_by_username, verify_password
 
 # === Load Environment Variables ===
 load_dotenv()
@@ -69,13 +69,65 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Telegram Webhook Route ===
+# === Session Auth Helper ===
+def get_user_from_token(authorization: str = Header(...)):
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=403, detail="Invalid token format")
+    token = authorization[7:]
+    session_ref = db.reference(f"sessions/{token}")
+    session = session_ref.get()
+    if not session:
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+    return session["user_id"]
+
+# === REST API Endpoints ===
+@app.post("/register")
+async def register(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    password = data.get("password")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+    existing = get_user_by_username(username)
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    user_id = str(secrets.token_hex(8))
+    db.reference(f"users/{user_id}").set({
+        "username": username,
+        "password": password,  # Use hashing in production
+    })
+    return {"message": "User registered", "user_id": user_id}
+
+@app.post("/login")
+async def login(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    password = data.get("password")
+    user = get_user_by_username(username)
+    if not user or user.get("password") != password:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    session_token = secrets.token_urlsafe(32)
+    db.reference(f"sessions/{session_token}").set({
+        "user_id": user["id"],
+        "created": datetime.utcnow().isoformat()
+    })
+    return {"message": "Login successful", "token": session_token}
+
+@app.get("/me")
+async def get_profile(user_id: str = Depends(get_user_from_token)):
+    user = get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"user_id": user_id, "username": user.get("username")}
+
+# === Telegram Webhook Route (unchanged) ===
 @app.post("/webhook/{token}")
 async def telegram_webhook(request: Request, token: str):
     token = unquote(token)
     if token != bot_token:
         raise HTTPException(status_code=403, detail="Unauthorized")
-
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_app.bot)
@@ -85,7 +137,6 @@ async def telegram_webhook(request: Request, token: str):
         logger.error(f"Webhook error: {e}")
         raise HTTPException(status_code=400, detail="Invalid Telegram update")
 
-# === Legacy Webhook ===
 @app.post("/legacy/{token}")
 async def legacy_webhook(token: str, request: Request):
     if token != bot_token:
@@ -131,55 +182,17 @@ async def legacy_webhook(token: str, request: Request):
 
     return {"ok": True}
 
-# === Register New User via API ===
-@app.post("/register")
-async def register_user(request: Request):
-    data = await request.json()
-    user_id = str(data.get("user_id"))
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id is required")
-
-    if get_user(user_id):
-        return {"status": "exists", "message": f"User {user_id} already registered."}
-
-    create_user(user_id)
-    log_event(user_id, "register_api", "User registered via API")
-    return {"status": "created", "message": f"User {user_id} successfully registered."}
-
-# === Manual Trade via API ===
-@app.post("/api/trade")
-async def trade_api(request: Request):
-    data = await request.json()
-    user_id = str(data.get("user_id"))
-    amount = data.get("amount")
-
-    user = get_user(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    try:
-        # If amount is passed, update config
-        if amount:
-            update_user_config(user_id, {"amount": amount})
-        run_auto_bot(user_id, manual=True)
-        log_event(user_id, "api_trade", f"Trade executed via API for {user_id}")
-        return {"status": "success", "message": "Trade executed"}
-    except Exception as e:
-        log_event(user_id, "api_trade", "Error", status="error", error=e)
-        raise HTTPException(status_code=500, detail=f"Trade error: {e}")
-
 # === Root Endpoint ===
 @app.get("/")
 def root():
     return {"message": "Crypto Bot is live"}
 
-# === Startup Event ===
+# === Start bot background service on app startup ===
 @app.on_event("startup")
 async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
     await telegram_app.start()
-
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
         ("help", "Show help info"),
@@ -192,13 +205,12 @@ async def start_bot():
         ("setamount", "Set trade amount"),
         ("showconfig", "View your current configuration"),
     ])
-
     await telegram_app.bot.set_webhook(
         url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
     logger.info("Webhook set successfully.")
 
-# === Shutdown Event ===
+# === Shutdown Telegram bot cleanly ===
 @app.on_event("shutdown")
 async def stop_bot():
     logger.info("Stopping Telegram bot...")
