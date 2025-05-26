@@ -11,19 +11,23 @@ def get_local_time(offset_hours: int = 2) -> datetime:
     return get_utc_now() + timedelta(hours=offset_hours)
 
 def format_timestamp(ts: datetime) -> str:
-    """Formats datetime object to string."""
+    """Formats a datetime object to a readable string."""
     return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 def time_since(ts: datetime) -> str:
-    """Returns a human-readable duration since given timestamp."""
+    """Returns a human-readable duration since the given timestamp."""
     delta = get_utc_now() - ts
-    minutes = int(delta.total_seconds() // 60)
-    if minutes < 1:
+    total_minutes = int(delta.total_seconds() // 60)
+
+    if total_minutes < 1:
         return "just now"
-    elif minutes == 1:
+    elif total_minutes == 1:
         return "1 minute ago"
-    elif minutes < 60:
-        return f"{minutes} minutes ago"
-    else:
-        hours = minutes // 60
+    elif total_minutes < 60:
+        return f"{total_minutes} minutes ago"
+    elif total_minutes < 1440:
+        hours = total_minutes // 60
         return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    else:
+        days = total_minutes // 1440
+        return f"{days} day{'s' if days != 1 else ''} ago"
