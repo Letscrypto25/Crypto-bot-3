@@ -2,7 +2,7 @@ import base64
 import json
 import os
 import logging
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler
 from firebase_admin import credentials, db, initialize_app
@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import firebase_admin
 from urllib.parse import unquote
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer
 
 from utils import send_alert, format_trade_message
 from commands import (
@@ -116,7 +116,7 @@ async def legacy_webhook(token: str, request: Request):
                 send_alert(response, chat_id)
             log_event(user_id, "command", text)
         except Exception as e:
-            send_alert(f"Command error for user {user_id}: {e}")
+            send_alert(f"Command error for user {user_id}: {e}", chat_id)
             send_alert("Oops, there was an error handling your command.", chat_id)
             log_event(user_id, "command", text, status="error", error=e)
         return {"ok": True}
@@ -126,7 +126,7 @@ async def legacy_webhook(token: str, request: Request):
             run_auto_bot(user_id)
             log_event(user_id, "autobot", text)
     except Exception as e:
-        send_alert(f"AutoBot error for {user_id}: {e}")
+        send_alert(f"AutoBot error for {user_id}: {e}", chat_id)
         send_alert("Error running AutoBot. Check your settings.", chat_id)
         log_event(user_id, "autobot", text, status="error", error=e)
 
@@ -167,25 +167,3 @@ async def start_bot():
 async def stop_bot():
     logger.info("Stopping Telegram bot...")
     await telegram_app.shutdown()
-
-
-#Thanks! Based on the full script you shared, everything looks quite complete and well-structured. You’ve got a clean integration of:
-
-#Firebase initialization using base64-encoded credentials.
-
-#Telegram bot commands and webhook handling.
-
-#FastAPI web server with both a current and legacy webhook route.
-
-#Logging system to Firebase.
-
-#AutoBot runner and user onboarding logic.
-
-
-#Here’s a quick checklist of improvements and optional considerations to polish this further:
-
-
-#---
-
-
-
