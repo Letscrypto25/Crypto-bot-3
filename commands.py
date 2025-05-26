@@ -26,7 +26,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
-        "Available Commands:\n
+        "Available Commands:\n"
         "/start - Verify and activate your account\n"
         "/register <exchange> <api_key> <secret>\n"
         "/balance - Check your balance\n"
@@ -40,7 +40,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/setbase <currency>\n"
         "/showconfig - View current configuration\n"
         "/help - Show this message"
-)
+    )
     await update.message.reply_text(help_text)
 
 #/register
