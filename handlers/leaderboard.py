@@ -5,21 +5,35 @@ from telegram.ext import ContextTypes
 from database import firebase_ref
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    all_users = firebase_ref.get()
-    if not all_users:
-        await update.message.reply_text("No user data found.")
-        return
+    try:
+        all_users = firebase_ref.get()
+        if not all_users:
+            await update.message.reply_text("No user data found.")
+            return
 
-    rankings = []
-    for uid, data in all_users.items():
-        pnl = float(data.get("pnl", 0))
-        username = data.get("username", uid)
-        rankings.append((username, pnl))
+        # Create leaderboard data
+        rankings = []
+        for uid, data in all_users.items():
+            pnl = float(data.get("pnl", 0))
+            username = data.get("username") or uid[:6]
+            rankings.append((username, pnl))
 
-    rankings.sort(key=lambda x: x[1], reverse=True)
+        if not rankings:
+            await update.message.reply_text("No PnL data available.")
+            return
 
-    msg = "*Leaderboard:*\n"
-    for i, (username, pnl) in enumerate(rankings[:10], start=1):
-        msg += f"{i}. {username}: ${pnl:.2f}\n"
+        # Sort by PnL descending
+        rankings.sort(key=lambda x: x[1], reverse=True)
 
-    await update.message.reply_text(msg, parse_mode="Markdown")
+        # Format message
+        msg_lines = ["*Leaderboard (Top 10)*\n"]
+        for i, (username, pnl) in enumerate(rankings[:10], start=1):
+            msg_lines.append(f"{i}. `{username}`: *${pnl:,.2f}*")
+
+        await update.message.reply_text(
+            "\n".join(msg_lines),
+            parse_mode="Markdown"
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"Error generating leaderboard: {e}")
