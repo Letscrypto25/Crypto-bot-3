@@ -169,20 +169,20 @@ async def stop_bot():
     await telegram_app.shutdown()
 
 
-Thanks! Based on the full script you shared, everything looks quite complete and well-structured. You’ve got a clean integration of:
+#Thanks! Based on the full script you shared, everything looks quite complete and well-structured. You’ve got a clean integration of:
 
-Firebase initialization using base64-encoded credentials.
+#Firebase initialization using base64-encoded credentials.
 
-Telegram bot commands and webhook handling.
+#Telegram bot commands and webhook handling.
 
-FastAPI web server with both a current and legacy webhook route.
+#FastAPI web server with both a current and legacy webhook route.
 
-Logging system to Firebase.
+#Logging system to Firebase.
 
-AutoBot runner and user onboarding logic.
+#AutoBot runner and user onboarding logic.
 
 
-Here’s a quick checklist of improvements and optional considerations to polish this further:
+#Here’s a quick checklist of improvements and optional considerations to polish this further:
 
 
 #---
