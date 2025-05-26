@@ -11,7 +11,7 @@ from exchanges import get_price
 
 logger = logging.getLogger(name)
 
-/start
+#/start
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 user_id = str(update.message.from_user.id)
@@ -22,7 +22,7 @@ firebase_ref.child(user_id).update({
 })
 await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
 
-/help
+#/help
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 help_text = (
@@ -43,7 +43,7 @@ help_text = (
 )
 await update.message.reply_text(help_text)
 
-/register
+#/register
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
 user_id = str(update.effective_user.id)
@@ -64,7 +64,7 @@ except Exception as e:
     logger.exception("register error")  
     await update.message.reply_text("An error occurred during registration.")
 
-/trade
+#/trade
 
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
 user_id = str(update.message.from_user.id)
@@ -104,7 +104,7 @@ except Exception as e:
     logger.exception("Trade error")  
     await update.message.reply_text(f"Trade failed: {e}")
 
-/autobot enable|disable
+#/autobot enable|disable
 
 async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 try:
@@ -150,7 +150,7 @@ except Exception as e:
 logger.exception("stop_autobot error")
 await update.message.reply_text("An error occurred while stopping the autobot.")
 
-/leaderboard
+#/leaderboard
 
 async def get_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 try:
@@ -169,7 +169,7 @@ except Exception as e:
 logger.exception("Leaderboard error")
 await update.message.reply_text("An error occurred while fetching the leaderboard.")
 
-/setbase <currency>
+#/setbase <currency>
 
 async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
 try:
@@ -185,7 +185,7 @@ except Exception as e:
 logger.exception("set_base error")
 await update.message.reply_text("An error occurred while setting base currency.")
 
-/setplatform <binance|luno>
+#/setplatform <binance|luno>
 
 async def set_platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
 try:
@@ -204,7 +204,7 @@ except Exception as e:
 logger.exception("set_platform error")
 await update.message.reply_text("An error occurred while setting platform.")
 
-/setstrategy <strategy_name>
+#/setstrategy <strategy_name>
 
 async def set_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 try:
@@ -220,7 +220,7 @@ except Exception as e:
 logger.exception("set_strategy error")
 await update.message.reply_text("An error occurred while setting strategy.")
 
-/setamount <amount>
+#/setamount <amount>
 
 async def set_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 try:
@@ -239,7 +239,7 @@ except Exception as e:
 logger.exception("set_amount error")
 await update.message.reply_text("An error occurred while setting amount.")
 
-/showconfig
+#/showconfig
 
 async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
 try:
