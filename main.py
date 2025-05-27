@@ -80,7 +80,7 @@ async def telegram_webhook(request: Request, token: str):
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_app.bot)
-        await telegram_app.update_queue.put_nowait(update)
+        await telegram_app.process_update(update)
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -142,7 +142,6 @@ def root():
 async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
-    #telegram_app.update_queue.put_nowait(update)
 
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
