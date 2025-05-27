@@ -2,35 +2,54 @@
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from trading.core import execute_trade
-from database import firebase_ref
+from database import get_user
+from crypto.luno import place_luno_order
+from crypto.binance import place_binance_order
+from utils import decrypt_api_key, decrypt_api_secret
 
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     args = context.args
 
-    if len(args) < 3:
-        await update.message.reply_text("Usage: /trade <coin> <amount> <buy/sell>")
+    if len(args) < 4:
+        await update.message.reply_text("Usage: /trade <exchange> <buy/sell> <symbol> <amount> <password>")
         return
 
-    coin, amount, side = args[0].upper(), args[1], args[2].lower()
-
-    user_data = firebase_ref.child(user_id).get()
-    if not user_data:
-        await update.message.reply_text("You are not registered. Use /register first.")
+    exchange, side, symbol, amount_str, *rest = args
+    password = rest[-1] if rest else None
+    if not password:
+        await update.message.reply_text("Password is required to confirm trade.")
         return
 
-    api_key = user_data.get("api_key")
-    api_secret = user_data.get("api_secret")
-    exchange = user_data.get("exchange")
-
-    if not api_key or not api_secret:
-        await update.message.reply_text("Incomplete API credentials.")
+    user = get_user(user_id)
+    if not user or not user.get("active"):
+        await update.message.reply_text("You are not registered or active.")
         return
 
-    result = execute_trade(exchange, api_key, api_secret, coin, amount, side)
+    # Validate password
+    stored_pw = user.get("password")
+    if not stored_pw or password != stored_pw:
+        await update.message.reply_text("Incorrect password.")
+        return
 
-    if result.get("success"):
-        await update.message.reply_text(f"{side.capitalize()} order placed for {amount} {coin}.")
-    else:
-        await update.message.reply_text(f"Trade failed: {result.get('error', 'Unknown error')}")
+    try:
+        amount = float(amount_str)
+    except ValueError:
+        await update.message.reply_text("Invalid amount format.")
+        return
+
+    try:
+        api_key = decrypt_api_key(user["api_key"])
+        api_secret = decrypt_api_secret(user["api_secret"])
+
+        if exchange.lower() == "luno":
+            result = place_luno_order(api_key, api_secret, side, symbol, amount)
+        elif exchange.lower() == "binance":
+            result = place_binance_order(api_key, api_secret, side, symbol, amount)
+        else:
+            await update.message.reply_text("Invalid exchange.")
+            return
+
+        await update.message.reply_text(f"Trade placed: {result}")
+    except Exception as e:
+        await update.message.reply_text(f"Trade failed: {e}")
