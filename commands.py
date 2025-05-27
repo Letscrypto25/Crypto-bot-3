@@ -146,6 +146,7 @@ async def stop_autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("An error occurred while stopping the autobot.")
 
 # /leaderboard
+# /leaderboard
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         leaderboard = get_all_users()
@@ -153,15 +154,15 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if leaderboard:
             sorted_users = sorted(
                 leaderboard.items(),
-                key=lambda x: x[1].get("total_profit", 0),
+                key=lambda x: float(x[1].get("total_profit", 0) or 0),
                 reverse=True
             )
 
-            message = "Leaderboard\n\n"
+            message = "*Leaderboard*\n\n"
             for i, (uid, data) in enumerate(sorted_users[:10], start=1):
-                name = data.get("first_name", "User")
-                profit = data.get("total_profit", 0)
-                message += f"{i}. {name} — ${profit:.2f}\n"
+                name = data.get("first_name") or f"User {uid[-4:]}"
+                profit = float(data.get("total_profit", 0) or 0)
+                message += f"{i}. {name} — ${profit:,.2f}\n"
 
             await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
         else:
@@ -169,7 +170,6 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.exception("Leaderboard error")
         await update.message.reply_text("An error occurred while fetching the leaderboard.")
-
 # /setbase
 async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
