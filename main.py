@@ -142,7 +142,7 @@ def root():
 async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
-    await telegram_app.start()
+    telegram_app.update_queue.put_nowait(update)
 
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
