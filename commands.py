@@ -12,11 +12,20 @@ from exchanges import get_price
 logger = logging.getLogger(__name__)
 
 # /start
+# global dict to track last seen message IDs (in memory only)
+last_message_ids = {}
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
+    msg_id = update.message.message_id
+
+    # avoid repeating response to the same message
+    if last_message_ids.get(user_id) == msg_id:
+        return
+    last_message_ids[user_id] = msg_id
+
     user_data = firebase_ref.child(user_id).get()
 
-    # Only create user data if it doesn't exist
     if not user_data:
         firebase_ref.child(user_id).set({
             "first_name": update.message.from_user.first_name,
