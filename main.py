@@ -15,7 +15,7 @@ from fastapi.security import HTTPBearer
 from utils import send_alert, format_trade_message
 from commands import (
     start, help_command, trade, stop_autobot,
-    get_leaderboard, set_base, set_platform, set_strategy,
+    leaderboard, set_base, set_platform, set_strategy,
     set_amount, show_config
 )
 from auto_bot import run_auto_bot
