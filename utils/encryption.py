@@ -8,7 +8,7 @@ load_dotenv()
 
 # === Symmetric Encryption Key ===
 # Generate one with: Fernet.generate_key().decode()
-FERNET_KEY = os.getenv("FERNET_KEY")
+SECRET_KEY = os.getenv("FERNET_KEY")
 
 if not FERNET_KEY:
     raise ValueError("Missing FERNET_KEY in environment variables.")
