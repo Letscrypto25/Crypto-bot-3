@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import logging
+from commands import login
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler
@@ -59,6 +60,7 @@ telegram_app.add_handler(CommandHandler("setstrategy", set_strategy))
 telegram_app.add_handler(CommandHandler("setamount", set_amount))
 telegram_app.add_handler(CommandHandler("showconfig", show_config))
 telegram_app.add_handler(CommandHandler("register", register))
+telegram_app.add_handler(CommandHandler("login", login))
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
     log_ref = db.reference(f"logs/{user_id}")
