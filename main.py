@@ -12,6 +12,8 @@ import firebase_admin
 from urllib.parse import unquote
 from fastapi.security import HTTPBearer
 
+from commands import register 
+
 from utils import send_alert, format_trade_message
 from commands import (
     start, help_command, trade, stop_autobot,
@@ -56,7 +58,7 @@ telegram_app.add_handler(CommandHandler("setplatform", set_platform))
 telegram_app.add_handler(CommandHandler("setstrategy", set_strategy))
 telegram_app.add_handler(CommandHandler("setamount", set_amount))
 telegram_app.add_handler(CommandHandler("showconfig", show_config))
-
+telegram_app.add_handler(CommandHandler("register", register))
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
     log_ref = db.reference(f"logs/{user_id}")
