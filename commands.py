@@ -14,12 +14,18 @@ logger = logging.getLogger(__name__)
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
-    firebase_ref.child(user_id).update({
-        "first_name": update.message.from_user.first_name,
-        "active": False,
-        "autobot": False
-    })
-    await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
+    user_data = firebase_ref.child(user_id).get()
+
+    # Only create user data if it doesn't exist
+    if not user_data:
+        firebase_ref.child(user_id).set({
+            "first_name": update.message.from_user.first_name,
+            "active": False,
+            "autobot": False
+        })
+        await update.message.reply_text("Welcome! Use /register <exchange> <api_key> <secret> to begin.")
+    else:
+        await update.message.reply_text("You’re already registered. Use /help to see what you can do.")
 
 # /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
