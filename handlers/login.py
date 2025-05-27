@@ -1,15 +1,12 @@
-# handlers/login.py
-
 from telegram import Update
 from telegram.ext import ContextTypes
-from firebase_admin import db
+from database import firebase_ref
 from utils.encryption import verify_password
-from utils.logging import log_event  # reuse your log_event
 
 async def login(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
     user = update.effective_user
     user_id = str(user.id)
+    args = context.args
 
     if len(args) < 2:
         await update.message.reply_text("Usage: /login <username> <password>")
@@ -18,25 +15,23 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username_input, password_input = args[:2]
 
     try:
-        all_users = db.reference("users").get()
-        matched_user = None
-        matched_uid = None
+        all_users = firebase_ref.get()
 
-        for uid, user_data in (all_users or {}).items():
-            if user_data.get("username", "").lower() == username_input.lower():
-                if verify_password(password_input, user_data.get("password", "")):
-                    matched_user = user_data
-                    matched_uid = uid
-                    break
+        # Match username and check password
+        for uid, data in all_users.items():
+            if data.get("username") == username_input:
+                if verify_password(password_input, data.get("password_hash")):
+                    firebase_ref.child(user_id).update({
+                        "logged_in": True,
+                        "session_user": username_input
+                    })
+                    await update.message.reply_text("Login successful.")
+                    return
+                else:
+                    await update.message.reply_text("Incorrect password.")
+                    return
 
-        if matched_user:
-            # Optionally update Telegram ID in case a new one logs in
-            db.reference(f"users/{matched_uid}/telegram_id").set(user_id)
-            await update.message.reply_text("Login successful. You're now authenticated.")
-            log_event(user_id, "login", f"Logged in as {username_input}")
-        else:
-            await update.message.reply_text("Login failed: Invalid username or password.")
-            log_event(user_id, "login", "Invalid login attempt", status="error")
+        await update.message.reply_text("Username not found.")
+
     except Exception as e:
         await update.message.reply_text(f"Login failed: {e}")
-        log_event(user_id, "login", "Login error", status="error", error=e)
