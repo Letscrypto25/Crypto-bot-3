@@ -12,7 +12,7 @@ from datetime import datetime
 import firebase_admin
 from urllib.parse import unquote
 from fastapi.security import HTTPBearer
-
+from strategy_loop import strategy_loop
 from commands import register 
 
 from utils import send_alert, format_trade_message
@@ -45,6 +45,11 @@ logger = logging.getLogger("crypto-bot")
 app = FastAPI()
 security = HTTPBearer()
 
+#=== Strategy_loop ===
+@app.on_event("startup")
+async def start_bot():
+    ...
+    asyncio.create_task(strategy_loop())
 # === Telegram Bot Init ===
 telegram_app = Application.builder().token(bot_token).build()
 
