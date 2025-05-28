@@ -7,19 +7,18 @@ from database import (
     get_user_data, save_trade,
     get_user, get_all_users, firebase_ref
 )
-from exchanges import get_price
+from exchanges import get_price, get_balance
 
 logger = logging.getLogger(__name__)
 
-# /start
-# global dict to track last seen message IDs (in memory only)
+# Global dict to avoid replying to the same message twice
 last_message_ids = {}
 
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     msg_id = update.message.message_id
 
-    # avoid repeating response to the same message
     if last_message_ids.get(user_id) == msg_id:
         return
     last_message_ids[user_id] = msg_id
@@ -74,6 +73,29 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.exception("register error")
         await update.message.reply_text("An error occurred during registration.")
+
+# /balance
+async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    try:
+        user = get_user_data(user_id)
+        if not user or "exchange" not in user:
+            await update.message.reply_text("You're not registered. Use /register first.")
+            return
+
+        balances = get_balance(user_id=user_id, source=user["exchange"])
+        if not balances:
+            await update.message.reply_text("Could not retrieve balance.")
+            return
+
+        msg = "*Your Balance:*\n"
+        for coin, amount in balances.items():
+            if float(amount) > 0:
+                msg += f"{coin}: {amount}\n"
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        logger.exception("balance error")
+        await update.message.reply_text("An error occurred while fetching your balance.")
 
 # /trade
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -161,7 +183,6 @@ async def stop_autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("An error occurred while stopping the autobot.")
 
 # /leaderboard
-# /leaderboard
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         leaderboard = get_all_users()
@@ -185,6 +206,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.exception("Leaderboard error")
         await update.message.reply_text("An error occurred while fetching the leaderboard.")
+
 # /setbase
 async def set_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
