@@ -14,7 +14,7 @@ import firebase_admin
 from urllib.parse import unquote
 from fastapi.security import HTTPBearer
 from strategy_loop import strategy_loop
-from commands import register
+from commands import register, balance
 
 from utils import send_alert, format_trade_message
 from commands import (
@@ -62,6 +62,7 @@ telegram_app.add_handler(CommandHandler("setamount", set_amount))
 telegram_app.add_handler(CommandHandler("showconfig", show_config))
 telegram_app.add_handler(CommandHandler("register", register))
 telegram_app.add_handler(CommandHandler("login", login))
+telegram_app.add_handler(CommandHandler("balance", balance))  # ✅ NEW
 
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
@@ -89,14 +90,11 @@ async def telegram_webhook(request: Request, token: str):
         logger.error(f"Failed to parse JSON from webhook request: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    # Handle the update either as Telegram Update object or fallback legacy format
     try:
         if "update_id" in data:
-            # New Telegram Update format
             update = Update.de_json(data, telegram_app.bot)
             await telegram_app.process_update(update)
         else:
-            # Legacy fallback format (raw message)
             message = data.get("message", {})
             chat_id = message.get("chat", {}).get("id")
             text = message.get("text", "")
@@ -115,7 +113,6 @@ async def telegram_webhook(request: Request, token: str):
 
             if text.startswith("/"):
                 try:
-                    # You need to implement or import handle_command somewhere
                     response = handle_command(text, user_id)
                     if response:
                         send_alert(response, chat_id)
@@ -141,12 +138,10 @@ async def telegram_webhook(request: Request, token: str):
 
     return {"ok": True}
 
-# === Root Endpoint ===
 @app.get("/")
 def root():
     return {"message": "Crypto Bot is live"}
 
-# === Startup event: initialize bot, commands, webhook, start strategy loop ===
 @app.on_event("startup")
 async def start_bot():
     logger.info("Starting Telegram bot...")
@@ -163,17 +158,15 @@ async def start_bot():
         ("setstrategy", "Select your strategy"),
         ("setamount", "Set trade amount"),
         ("showconfig", "View your current configuration"),
+        ("balance", "Check your crypto balance"),  # ✅ NEW
     ])
 
     await telegram_app.bot.set_webhook(
         url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
     logger.info("Webhook set successfully.")
-
-    # Start your background strategy loop
     asyncio.create_task(strategy_loop())
 
-# === Shutdown event: clean shutdown of Telegram bot ===
 @app.on_event("shutdown")
 async def stop_bot():
     logger.info("Stopping Telegram bot...")
