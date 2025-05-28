@@ -14,14 +14,13 @@ import firebase_admin
 from urllib.parse import unquote
 from fastapi.security import HTTPBearer
 from strategy_loop import strategy_loop
-from commands import register, balance
-
-from utils import send_alert, format_trade_message
 from commands import (
     start, help_command, trade, stop_autobot,
     leaderboard, set_base, set_platform, set_strategy,
-    set_amount, show_config
+    set_amount, show_config, register, balance
 )
+
+from utils import send_alert, format_trade_message
 from auto_bot import run_auto_bot
 from database import get_user, get_autobot_status, create_user
 
@@ -49,7 +48,7 @@ security = HTTPBearer()
 # === Telegram Bot Init ===
 telegram_app = Application.builder().token(bot_token).build()
 
-# === Register Handlers ===
+# === Register Handlers for all commands ===
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("trade", trade))
@@ -62,7 +61,7 @@ telegram_app.add_handler(CommandHandler("setamount", set_amount))
 telegram_app.add_handler(CommandHandler("showconfig", show_config))
 telegram_app.add_handler(CommandHandler("register", register))
 telegram_app.add_handler(CommandHandler("login", login))
-telegram_app.add_handler(CommandHandler("balance", balance))  # ✅ NEW
+telegram_app.add_handler(CommandHandler("balance", balance))
 
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
@@ -147,6 +146,7 @@ async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
 
+    # Set all commands for Telegram UI
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
         ("help", "Show help info"),
@@ -158,7 +158,9 @@ async def start_bot():
         ("setstrategy", "Select your strategy"),
         ("setamount", "Set trade amount"),
         ("showconfig", "View your current configuration"),
-        ("balance", "Check your crypto balance"),  # ✅ NEW
+        ("register", "Register a new account"),
+        ("login", "Log into your account"),
+        ("balance", "Check your crypto balance"),
     ])
 
     await telegram_app.bot.set_webhook(
