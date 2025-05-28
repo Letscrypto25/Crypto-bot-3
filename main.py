@@ -2,7 +2,7 @@ import base64
 import json
 import os
 import logging
-from commands import login
+from handlers import login
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler
