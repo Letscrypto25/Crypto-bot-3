@@ -3,7 +3,7 @@
 from firebase_admin import db
 from trading_api import get_price_history, trade_on_binance
 
-def execute(user):
+def run_mean_reversion(user):
     """
     Mean Reversion Strategy:
     If current price deviates significantly from recent average, expect it to revert to the mean.
