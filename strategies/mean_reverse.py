@@ -1,13 +1,11 @@
-# strategies/mean_reversion.py
-
 from firebase_admin import db
 from trading_api import get_price_history, trade_on_binance
 
 def run_mean_reversion(user):
     """
     Mean Reversion Strategy:
-    If current price deviates significantly from recent average, expect it to revert to the mean.
-    Records profit and updates Firebase.
+    Trades when the current price deviates significantly from its recent average,
+    expecting a reversion to the mean. Updates results in Firebase.
     """
     symbol = "BTC/USDT"
     interval = "1m"
@@ -17,41 +15,46 @@ def run_mean_reversion(user):
     risk = user.get("risk_tolerance", 0.02)
     profit_target = user.get("profit_target", 50)
 
-    prices = get_price_history(user, symbol, interval, lookback)
+    try:
+        prices = get_price_history(user, symbol, interval, lookback)
 
-    if not prices or len(prices) < lookback:
-        print(f"[{user_id}] Not enough price data.")
+        if not prices or len(prices) < lookback:
+            print(f"[{user_id}] Not enough price data for mean reversion.")
+            update_trade_result(user_id, 0, "error")
+            return
+
+        current_price = prices[-1]
+        average_price = sum(prices) / len(prices)
+        deviation = current_price - average_price
+        trigger = 0.01 * average_price  # 1% deviation
+
+        print(f"[{user_id}] Current: {current_price:.2f}, Average: {average_price:.2f}")
+
+        trade_result = "none"
+        profit = 0
+
+        if deviation > trigger:
+            print(f"[{user_id}] Price above mean → SELL signal")
+            success = trade_on_binance(user, action="sell", symbol=symbol, amount=risk)
+            if success:
+                profit = profit_target
+                trade_result = "profit"
+
+        elif deviation < -trigger:
+            print(f"[{user_id}] Price below mean → BUY signal")
+            success = trade_on_binance(user, action="buy", symbol=symbol, amount=risk)
+            if success:
+                profit = profit_target
+                trade_result = "profit"
+
+        else:
+            print(f"[{user_id}] Price near mean → no trade")
+
+        update_trade_result(user_id, profit, trade_result)
+
+    except Exception as e:
+        print(f"[{user_id}] Mean reversion strategy error: {e}")
         update_trade_result(user_id, 0, "error")
-        return
-
-    current_price = prices[-1]
-    average_price = sum(prices) / len(prices)
-    deviation = current_price - average_price
-    trigger = 0.01 * average_price
-
-    print(f"[{user_id}] Current: {current_price}, Average: {average_price:.2f}")
-
-    trade_result = "none"
-    profit = 0
-
-    if deviation > trigger:
-        print(f"[{user_id}] Price above mean - SELL")
-        success = trade_on_binance(user, action="sell", symbol=symbol, amount=risk)
-        if success:
-            profit = profit_target
-            trade_result = "profit"
-
-    elif deviation < -trigger:
-        print(f"[{user_id}] Price below mean - BUY")
-        success = trade_on_binance(user, action="buy", symbol=symbol, amount=risk)
-        if success:
-            profit = profit_target
-            trade_result = "profit"
-
-    else:
-        print(f"[{user_id}] Price near mean - no action")
-
-    update_trade_result(user_id, profit, trade_result)
 
 
 def update_trade_result(user_id, profit, status):
