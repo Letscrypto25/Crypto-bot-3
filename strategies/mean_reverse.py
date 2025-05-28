@@ -1,7 +1,7 @@
 from firebase_admin import db
 from trading_api import get_price_history, trade_on_binance
 
-def run_mean_reversion(user):
+def execute(user):
     """
     Mean Reversion Strategy:
     Trades when the current price deviates significantly from its recent average,
@@ -16,50 +16,49 @@ def run_mean_reversion(user):
     profit_target = user.get("profit_target", 50)
 
     try:
-        prices = get_price_history(user, symbol, interval, lookback)
+        price_history = get_price_history(user, symbol, interval, lookback)
 
-        if not prices or len(prices) < lookback:
-            print(f"[{user_id}] Not enough price data for mean reversion.")
+        if not price_history or len(price_history) < lookback:
+            print(f"[{user_id}] Not enough data for mean reversion strategy.")
             update_trade_result(user_id, 0, "error")
             return
 
-        current_price = prices[-1]
-        average_price = sum(prices) / len(prices)
-        deviation = current_price - average_price
-        trigger = 0.01 * average_price  # 1% deviation
+        current_price = price_history[-1]
+        mean_price = sum(price_history[:-1]) / (len(price_history) - 1)
+        deviation = (current_price - mean_price) / mean_price
 
-        print(f"[{user_id}] Current: {current_price:.2f}, Average: {average_price:.2f}")
+        print(f"[{user_id}] Current: {current_price:.2f} | Mean: {mean_price:.2f} | Deviation: {deviation:.4f}")
 
         trade_result = "none"
         profit = 0
 
-        if deviation > trigger:
-            print(f"[{user_id}] Price above mean → SELL signal")
+        if deviation > 0.01:
+            print(f"[{user_id}] Price above mean → SELL")
             success = trade_on_binance(user, action="sell", symbol=symbol, amount=risk)
             if success:
                 profit = profit_target
                 trade_result = "profit"
 
-        elif deviation < -trigger:
-            print(f"[{user_id}] Price below mean → BUY signal")
+        elif deviation < -0.01:
+            print(f"[{user_id}] Price below mean → BUY")
             success = trade_on_binance(user, action="buy", symbol=symbol, amount=risk)
             if success:
                 profit = profit_target
                 trade_result = "profit"
 
         else:
-            print(f"[{user_id}] Price near mean → no trade")
+            print(f"[{user_id}] No significant deviation → No trade")
 
         update_trade_result(user_id, profit, trade_result)
 
     except Exception as e:
-        print(f"[{user_id}] Mean reversion strategy error: {e}")
+        print(f"[{user_id}] Mean Reversion strategy error: {e}")
         update_trade_result(user_id, 0, "error")
 
 
 def update_trade_result(user_id, profit, status):
     """
-    Update Firebase with profit and trade result.
+    Update Firebase with trade result and profit.
     """
     try:
         user_ref = db.reference(f"/users/{user_id}")
