@@ -1,9 +1,9 @@
-# strategies/momentum.py
+# strategies/momentum_trading.py
 
 from firebase_admin import db
 from trading_api import get_price_history, trade_on_binance
 
-def execute(user):
+def run_momentum(user):
     """
     Momentum Strategy:
     Buy if price trending up, sell if trending down.
