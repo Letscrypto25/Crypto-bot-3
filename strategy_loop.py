@@ -2,8 +2,7 @@
 
 import asyncio
 from database import get_all_users, get_user, get_autobot_status
-from auto_bot import run_auto_bot
-from strategies.arbitrage import run_arbitrage
+from trading_api import get_binance_price, get_luno_price, trade_on_binance, trade_on_luno
 from strategies.momentum_trading import run_momentum
 from strategies.mean_reverse import run_mean_reversion
 from strategies.trend_follow import run_trend_follow
@@ -11,10 +10,36 @@ from strategies.range_trader import run_range
 from strategies.dip_buyer import run_dip_buyer
 from utils import log_event
 
-# Arbitrage runs faster (every 20s), rest are slower
+# Strategy intervals
 ARBITRAGE_INTERVAL = 20
 BINANCE_INTERVAL = 60
 LUNO_INTERVAL = 300
+ARBITRAGE_MIN_PROFIT = 0.5  # percent
+
+async def run_arbitrage(user_id):
+    user = get_user(user_id)
+    if not user:
+        return
+
+    try:
+        binance_price = get_binance_price("BTCUSDT")
+        luno_price = get_luno_price("XBTZAR")
+        zar_usdt = user.get("zar_usdt_rate", 18.5)  # Hardcoded or fetched elsewhere
+
+        # Convert Luno price to USD equivalent
+        luno_usd_price = luno_price / zar_usdt
+
+        price_diff = binance_price - luno_usd_price
+        percent_diff = (price_diff / luno_usd_price) * 100
+
+        if percent_diff >= ARBITRAGE_MIN_PROFIT:
+            log_event(user_id, "arbitrage_opportunity", f"Buy on Luno ({luno_usd_price:.2f}) sell on Binance ({binance_price:.2f}) | Profit: {percent_diff:.2f}%")
+            luno_result = trade_on_luno(user, "buy", amount=200)
+            binance_result = trade_on_binance(user, "sell", amount=None)
+            log_event(user_id, "arbitrage_trade", f"Executed Arbitrage: {luno_result} | {binance_result}")
+
+    except Exception as e:
+        log_event(user_id, "arbitrage_error", f"Arbitrage failed: {e}", status="error", error=e)
 
 async def run_user_strategies(user_id):
     while True:
@@ -24,11 +49,10 @@ async def run_user_strategies(user_id):
             continue
 
         exchange = user.get("exchange")
-        try:
-            # Run arbitrage (between both if available)
-            await run_arbitrage(user_id)
 
-            # Run user's configured strategy based on platform
+        try:
+            await run_arbitrage(user_id)  # always run arbitrage first
+
             if exchange == "binance":
                 await run_binance_strategies(user_id)
             elif exchange == "luno":
@@ -56,7 +80,7 @@ async def run_luno_strategies(user_id):
     await run_range(user_id)
 
 async def strategy_loop():
-    await asyncio.sleep(10)  # allow startup tasks
+    await asyncio.sleep(10)
     users = get_all_users()
     for user_id in users:
         asyncio.create_task(run_user_strategies(user_id))
