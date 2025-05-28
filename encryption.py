@@ -8,12 +8,12 @@ load_dotenv()
 
 # === Symmetric Encryption Key ===
 # Generate one with: Fernet.generate_key().decode()
-SECRET_KEY = os.getenv("FERNET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 if not FERNET_KEY:
-    raise ValueError("Missing FERNET_KEY in environment variables.")
+    raise ValueError("Missing SECRET_KEY in environment variables.")
 
-fernet = Fernet(FERNET_KEY.encode())
+fernet = Fernet(SECRET_KEY.encode())
 
 # === Encryption Utilities ===
 def encrypt_data(data: str) -> str:
