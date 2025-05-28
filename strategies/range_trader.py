@@ -1,5 +1,5 @@
 from trading_api import get_rsi, trade_on_binance
-from notifications import notify_user_profit_loss
+from from notifications_manager import notify_user_profit_loss
 from firebase_admin import db
 import time
 
