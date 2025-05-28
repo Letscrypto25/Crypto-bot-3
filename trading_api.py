@@ -1,4 +1,3 @@
-
 import logging
 import requests
 import pandas as pd
@@ -19,6 +18,36 @@ def get_binance_price(symbol="BTC/USDT", api_key=None, api_secret=None):
     except Exception as e:
         logger.error(f"Failed to get Binance price for {symbol}: {e}")
         return None
+
+# --- RSI Indicator ---
+def get_rsi(prices, period=14):
+    """
+    Calculates RSI (Relative Strength Index) from a list of prices.
+    Args:
+        prices (list of float): Closing prices, most recent last.
+        period (int): RSI period, default 14.
+    Returns:
+        float: RSI value between 0 and 100.
+    """
+    if len(prices) < period + 1:
+        raise ValueError("Not enough price data to calculate RSI")
+
+    gains, losses = [], []
+
+    for i in range(1, period + 1):
+        delta = prices[-(i + 1)] - prices[-i]
+        gains.append(max(delta, 0))
+        losses.append(abs(min(delta, 0)))
+
+    avg_gain = sum(gains) / period
+    avg_loss = sum(losses) / period
+
+    if avg_loss == 0:
+        return 100.0  # RSI maxed
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return round(rsi, 2)
 
 # --- Binance Historical Price Fetcher + Indicators ---
 def get_price_history(symbol="BTC/USDT", interval="1h", limit=100, api_key=None, api_secret=None, indicators=False):
