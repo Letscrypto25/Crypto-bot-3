@@ -1,3 +1,4 @@
+
 import logging
 import requests
 import pandas as pd
@@ -62,6 +63,27 @@ def get_luno_price(pair="XBTZAR"):
     except Exception as e:
         logger.error(f"Failed to get Luno price for {pair}: {e}")
         return None
+
+# --- Price Change Calculator ---
+def get_price_change(user, symbol, timeframe="1h"):
+    """
+    Calculates % price change over the last 2 candles.
+    """
+    try:
+        client = BinanceClient(api_key=user["binance_api_key"], api_secret=user["binance_api_secret"])
+        symbol_binance = symbol.replace("/", "")
+        klines = client.get_klines(symbol=symbol_binance, interval=timeframe, limit=2)
+
+        if len(klines) < 2:
+            return 0
+
+        open_price = float(klines[0][1])
+        close_price = float(klines[1][4])
+        change = (close_price - open_price) / open_price
+        return change
+    except Exception as e:
+        logger.error(f"Error getting price change for {symbol}: {e}")
+        return 0
 
 # --- Trade on Binance ---
 def trade_on_binance(user, action="buy", symbol="BTC/USDT", amount=None):
