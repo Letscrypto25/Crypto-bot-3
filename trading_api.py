@@ -19,6 +19,37 @@ def get_binance_price(symbol="BTC/USDT", api_key=None, api_secret=None):
         logger.error(f"Failed to get Binance price for {symbol}: {e}")
         return None
 
+# --- Binance Historical Price Fetcher + Indicators ---
+def get_price_history(symbol="BTC/USDT", interval="1h", limit=100, api_key=None, api_secret=None, indicators=False):
+    """
+    Fetch historical candlestick data from Binance.
+    Returns a list of close prices, optionally with SMA/EMA as a pandas DataFrame.
+    """
+    try:
+        client = BinanceClient(api_key=api_key, api_secret=api_secret)
+        symbol_binance = symbol.replace("/", "")
+        klines = client.get_klines(symbol=symbol_binance, interval=interval, limit=limit)
+
+        df = pd.DataFrame(klines, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_vol', 'taker_buy_quote_vol', 'ignore'
+        ])
+
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df['close'] = df['close'].astype(float)
+
+        if indicators:
+            df['SMA_10'] = df['close'].rolling(window=10).mean()
+            df['EMA_10'] = df['close'].ewm(span=10, adjust=False).mean()
+
+        logger.info(f"Retrieved {len(df)} historical candles for {symbol}")
+        return df if indicators else df['close'].tolist()
+
+    except Exception as e:
+        logger.error(f"Failed to get price history for {symbol}: {e}")
+        return [] if not indicators else pd.DataFrame()
+
 # --- Luno Price Fetcher ---
 def get_luno_price(pair="XBTZAR"):
     try:
@@ -90,34 +121,3 @@ def trade_on_luno(user, action="buy", amount=None):
     except Exception as e:
         logger.error(f"Luno trade error for user {user['user_id']}: {e}")
         return str(e)
-
-# --- Binance Historical Price Fetcher + Indicators ---
-def get_price_history(symbol="BTC/USDT", interval="1h", limit=100, api_key=None, api_secret=None, indicators=False):
-    """
-    Fetch historical candlestick data from Binance.
-    Returns a list of close prices, optionally with SMA/EMA as a pandas DataFrame.
-    """
-    try:
-        client = BinanceClient(api_key=api_key, api_secret=api_secret)
-        symbol_binance = symbol.replace("/", "")
-        klines = client.get_klines(symbol=symbol_binance, interval=interval, limit=limit)
-
-        df = pd.DataFrame(klines, columns=[
-            'timestamp', 'open', 'high', 'low', 'close', 'volume',
-            'close_time', 'quote_asset_volume', 'number_of_trades',
-            'taker_buy_base_vol', 'taker_buy_quote_vol', 'ignore'
-        ])
-
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        df['close'] = df['close'].astype(float)
-
-        if indicators:
-            df['SMA_10'] = df['close'].rolling(window=10).mean()
-            df['EMA_10'] = df['close'].ewm(span=10, adjust=False).mean()
-
-        logger.info(f"Retrieved {len(df)} historical candles for {symbol}")
-        return df if indicators else df['close'].tolist()
-
-    except Exception as e:
-        logger.error(f"Failed to get price history for {symbol}: {e}")
-        return [] if not indicators else pd.DataFrame()
