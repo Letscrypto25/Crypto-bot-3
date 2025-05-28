@@ -19,35 +19,33 @@ def get_binance_price(symbol="BTC/USDT", api_key=None, api_secret=None):
         logger.error(f"Failed to get Binance price for {symbol}: {e}")
         return None
 
-# --- RSI Indicator ---
+# --- RSI Indicator with Pandas ---
 def get_rsi(prices, period=14):
     """
-    Calculates RSI (Relative Strength Index) from a list of prices.
+    Calculates RSI (Relative Strength Index) using pandas.
     Args:
-        prices (list of float): Closing prices, most recent last.
+        prices (list or pd.Series): Closing prices, most recent last.
         period (int): RSI period, default 14.
     Returns:
         float: RSI value between 0 and 100.
     """
+    if isinstance(prices, list):
+        prices = pd.Series(prices)
+
     if len(prices) < period + 1:
         raise ValueError("Not enough price data to calculate RSI")
 
-    gains, losses = [], []
+    delta = prices.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
 
-    for i in range(1, period + 1):
-        delta = prices[-(i + 1)] - prices[-i]
-        gains.append(max(delta, 0))
-        losses.append(abs(min(delta, 0)))
-
-    avg_gain = sum(gains) / period
-    avg_loss = sum(losses) / period
-
-    if avg_loss == 0:
-        return 100.0  # RSI maxed
+    avg_gain = gain.ewm(alpha=1/period, min_periods=period).mean()
+    avg_loss = loss.ewm(alpha=1/period, min_periods=period).mean()
 
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
-    return round(rsi, 2)
+
+    return round(rsi.iloc[-1], 2)
 
 # --- Binance Historical Price Fetcher + Indicators ---
 def get_price_history(symbol="BTC/USDT", interval="1h", limit=100, api_key=None, api_secret=None, indicators=False):
@@ -72,6 +70,7 @@ def get_price_history(symbol="BTC/USDT", interval="1h", limit=100, api_key=None,
         if indicators:
             df['SMA_10'] = df['close'].rolling(window=10).mean()
             df['EMA_10'] = df['close'].ewm(span=10, adjust=False).mean()
+            df['RSI_14'] = get_rsi(df['close'])
 
         logger.info(f"Retrieved {len(df)} historical candles for {symbol}")
         return df if indicators else df['close'].tolist()
