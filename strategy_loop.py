@@ -3,8 +3,8 @@
 import asyncio
 from database import get_all_users, get_user, get_autobot_status
 from trading_api import get_binance_price, get_luno_price, trade_on_binance, trade_on_luno
-from strategies.momentum_trading import execute as run_momentum
-from strategies.mean_reverse import run_mean_reversion
+from strategies.momentum_trading import run_momentum
+from strategies.mean_reversion import run_mean_reversion
 from strategies.trend_follow import run_trend_follow
 from strategies.range_trader import run_range
 from strategies.dip_buyer import run_dip_buyer
