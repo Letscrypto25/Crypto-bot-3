@@ -1,7 +1,7 @@
 from firebase_admin import db
 from trading_api import get_price_history, trade_on_binance
 
-def run_momentum(user):
+def execute(user):
     """
     Momentum Strategy:
     Detects clear upward or downward momentum from short-term price trends.
