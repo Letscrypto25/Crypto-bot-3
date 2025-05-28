@@ -9,7 +9,9 @@ from strategies.trend_follow import run_trend_follow
 from strategies.range_trader import run_range
 from strategies.dip_buyer import run_dip_buyer
 from utils import log_event
-
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Strategy intervals
 ARBITRAGE_INTERVAL = 20
 BINANCE_INTERVAL = 60
