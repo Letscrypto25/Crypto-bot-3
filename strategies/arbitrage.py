@@ -1,5 +1,3 @@
-# strategies/arbitrage.py
-
 from firebase_admin import db
 from trading_api import get_binance_price, get_luno_price, trade_on_binance, trade_on_luno
 
@@ -9,48 +7,70 @@ def execute(user):
     and updates daily profit stats + trade result status in Firebase.
     """
     symbol = "BTC/USDT"
-
-    # User-defined or default settings
-    risk_tolerance = user.get("risk_tolerance", 0.02)  # 2%
-    profit_target = user.get("profit_target", 50)      # R50
-
     user_id = user["user_id"]
-    binance_price = get_binance_price(user, symbol)
-    luno_price = get_luno_price(user, symbol)
 
-    if not binance_price or not luno_price:
-        print(f"[{user_id}] Could not fetch prices.")
+    # Settings with defaults
+    risk_tolerance = user.get("risk_tolerance", 0.02)  # 2%
+    profit_target = user.get("profit_target", 50)      # Minimum profit threshold in USD/ZAR
+
+    try:
+        binance_price = get_binance_price(user, symbol)
+        luno_price = get_luno_price(user, symbol)
+
+        if not binance_price or not luno_price:
+            print(f"[{user_id}] Error: Could not fetch one or both prices.")
+            update_trade_result(user_id, 0, "error")
+            return
+
+        print(f"[{user_id}] Binance: {binance_price} | Luno: {luno_price}")
+
+        price_diff = abs(binance_price - luno_price)
+        trade_result = "none"
+        profit = 0
+
+        if binance_price > luno_price + profit_target:
+            print(f"[{user_id}] Arbitrage Opportunity: Buy on Luno, Sell on Binance")
+            profit, trade_result = attempt_arbitrage_trade(
+                user, "luno", "binance", symbol, risk_tolerance, price_diff
+            )
+
+        elif luno_price > binance_price + profit_target:
+            print(f"[{user_id}] Arbitrage Opportunity: Buy on Binance, Sell on Luno")
+            profit, trade_result = attempt_arbitrage_trade(
+                user, "binance", "luno", symbol, risk_tolerance, price_diff
+            )
+
+        else:
+            print(f"[{user_id}] No arbitrage opportunity (Diff: {price_diff:.2f})")
+
+        update_trade_result(user_id, profit, trade_result)
+
+    except Exception as e:
+        print(f"[{user_id}] Arbitrage strategy failed: {e}")
         update_trade_result(user_id, 0, "error")
-        return
 
-    print(f"[{user_id}] Binance: {binance_price} | Luno: {luno_price}")
 
-    price_diff = abs(binance_price - luno_price)
-    threshold = profit_target
+def attempt_arbitrage_trade(user, buy_exchange, sell_exchange, symbol, risk, profit_value):
+    """
+    Helper function to execute buy and sell on specified exchanges.
+    Returns (profit, trade_result)
+    """
+    user_id = user["user_id"]
+    try:
+        buy_func = trade_on_binance if buy_exchange == "binance" else trade_on_luno
+        sell_func = trade_on_binance if sell_exchange == "binance" else trade_on_luno
 
-    trade_result = "none"
-    profit = 0
+        success_buy = buy_func(user, action="buy", symbol=symbol, risk_tolerance=risk)
+        success_sell = sell_func(user, action="sell", symbol=symbol, risk_tolerance=risk)
 
-    if binance_price > luno_price + threshold:
-        print(f"[{user_id}] Arbitrage: Buy Luno, Sell Binance")
-        success_buy = trade_on_luno(user, action="buy", symbol=symbol, risk_tolerance=risk_tolerance)
-        success_sell = trade_on_binance(user, action="sell", symbol=symbol, risk_tolerance=risk_tolerance)
         if success_buy and success_sell:
-            profit = price_diff
-            trade_result = "profit"
+            return round(profit_value, 2), "profit"
+        else:
+            return 0, "failed"
 
-    elif luno_price > binance_price + threshold:
-        print(f"[{user_id}] Arbitrage: Buy Binance, Sell Luno")
-        success_buy = trade_on_binance(user, action="buy", symbol=symbol, risk_tolerance=risk_tolerance)
-        success_sell = trade_on_luno(user, action="sell", symbol=symbol, risk_tolerance=risk_tolerance)
-        if success_buy and success_sell:
-            profit = price_diff
-            trade_result = "profit"
-
-    else:
-        print(f"[{user_id}] No arbitrage opportunity")
-
-    update_trade_result(user_id, profit, trade_result)
+    except Exception as e:
+        print(f"[{user_id}] Trade execution error: {e}")
+        return 0, "error"
 
 
 def update_trade_result(user_id, profit, status):
