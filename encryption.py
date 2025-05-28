@@ -10,7 +10,7 @@ load_dotenv()
 # Generate one with: Fernet.generate_key().decode()
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-if not FERNET_KEY:
+if not SECRET_KEY:
     raise ValueError("Missing SECRET_KEY in environment variables.")
 
 fernet = Fernet(SECRET_KEY.encode())
