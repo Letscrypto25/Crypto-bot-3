@@ -53,29 +53,22 @@ def get_price(user_id, source="binance", symbol="BTCUSDT", pair="XBTZAR"):
 
 def get_balance(user_id: str, source: str = "binance") -> dict:
     try:
-        if source == "luno":
+        if source == "binance":
+            client = get_binance_client(user_id)
+            account_info = client.get_account()
+            balances = account_info.get("balances", [])
+            return {b["asset"]: float(b["free"]) for b in balances if float(b["free"]) > 0}
+
+        elif source == "luno":
             headers = get_luno_auth_header(user_id)
-            r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
+            r = requests.get("https://api.luno.com/api/1/balance", headers=headers, timeout=10)
             r.raise_for_status()
             balances = r.json().get("balance", [])
-            return {
-                b["asset"]: b["balance"]
-                for b in balances
-                if float(b["balance"]) > 0
-            }
-
-        elif source == "binance":
-            client = get_binance_client(user_id)
-            balances = client.get_account()["balances"]
-            return {
-                b["asset"]: b["free"]
-                for b in balances
-                if float(b["free"]) > 0
-            }
+            return {b["asset"]: float(b["balance"]) for b in balances if float(b["balance"]) > 0}
 
         else:
-            raise ValueError(f"Unknown exchange source: {source}")
+            raise ValueError(f"Unknown source: {source}")
 
     except Exception as e:
-        print(f"[Balance Fetch] Error: {e}")
+        print(f"[Balance Fetch Error] {e}")
         return {}
