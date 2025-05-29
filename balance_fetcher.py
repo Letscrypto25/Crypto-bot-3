@@ -1,57 +1,44 @@
 import logging
+from binance.client import Client as BinanceClient
 import requests
-from binance.client import Client
-from firebase_admin import db
+import hmac
+import hashlib
+import time
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
-def get_user_balance(user_id, platform):
-    """Fetch user balances from Binance or Luno."""
-    user_ref = db.reference(f"/users/{user_id}")
-    user_data = user_ref.get()
-
-    if not user_data:
-        raise ValueError(f"User {user_id} not found")
-
+def get_user_balance(user_id, platform, user_data=None):
+    """Fetches real balance for the given platform and user."""
     if platform.lower() == "binance":
         return get_binance_balance(user_data)
     elif platform.lower() == "luno":
         return get_luno_balance(user_data)
     else:
-        raise ValueError(f"Unknown platform '{platform}'")
+        raise ValueError(f"Unsupported platform: {platform}")
 
-def get_binance_balance(user_data):
-    api_key = user_data["binance_api_key"]
-    api_secret = user_data["binance_api_secret"]
-    client = Client(api_key, api_secret)
+def get_binance_balance(user):
+    """Returns available balance for Binance using API key/secret."""
+    try:
+        client = BinanceClient(user["binance_api_key"], user["binance_api_secret"])
+        account_info = client.get_account()
+        balances = {item['asset']: float(item['free']) for item in account_info['balances'] if float(item['free']) > 0}
+        return balances
+    except Exception as e:
+        logger.error(f"[{user['user_id']}] Binance balance fetch error: {e}")
+        return {}
 
-    account_info = client.get_account()
-    balances = account_info.get("balances", [])
-    
-    result = {}
-    for asset in balances:
-        asset_name = asset["asset"]
-        free = float(asset["free"])
-        if free > 0:
-            result[asset_name] = free
-    return result
-
-def get_luno_balance(user_data):
-    api_key = user_data["luno_api_key"]
-    api_secret = user_data["luno_api_secret"]
-
-    response = requests.get(
-        "https://api.luno.com/api/1/balance",
-        auth=(api_key, api_secret)
-    )
-    if response.status_code != 200:
-        raise Exception(f"Luno balance fetch failed: {response.text}")
-
-    balances = response.json().get("balance", [])
-    result = {}
-    for item in balances:
-        asset = item["asset"]
-        balance = float(item["balance"])
-        if balance > 0:
-            result[asset] = balance
-    return result
+def get_luno_balance(user):
+    """Returns available balance for Luno using API key/secret."""
+    try:
+        url = "https://api.luno.com/api/1/balance"
+        nonce = str(int(time.time() * 1000))
+        auth = (user["luno_api_key"], user["luno_api_secret"])
+        response = requests.get(url, auth=auth)
+        response.raise_for_status()
+        data = response.json()
+        balances = {item['asset']: float(item['balance']) for item in data['balance'] if float(item['balance']) > 0}
+        return balances
+    except Exception as e:
+        logger.error(f"[{user['user_id']}] Luno balance fetch error: {e}")
+        return {}
