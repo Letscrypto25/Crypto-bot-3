@@ -1,16 +1,17 @@
+app = "crypto-bot-3-white-wind-424"
+primary_region = "iad"
+
 [build]
-dockerfile = "./Dockerfile"
+  dockerfile = "./Dockerfile"
 
 [env]
-FLY_APP_NAME = "crypto-bot-3-white-wind-424"
-TELEGRAM_BOT_TOKEN = "your-real-token"
-REDIS_URL = "redis://..."
-PORT = "8080"
-
-app = "uvicorn main:app --host 0.0.0.0 --port 8080"
+  FLY_APP_NAME = "crypto-bot-3-white-wind-424"
+  TELEGRAM_BOT_TOKEN = "your-real-token"
+  REDIS_URL = "redis://..."
+  PORT = "8080"
 
 [experimental]
-auto_rollback = true
+  auto_rollback = true
 
 [[services]]
   internal_port = 8080
@@ -26,6 +27,6 @@ auto_rollback = true
     handlers = ["tls", "http"]
 
 [[vm]]
-memory = "1gb"
-cpu_kind = "shared"
-cpus = 1
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
