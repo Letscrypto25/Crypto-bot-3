@@ -52,10 +52,12 @@ def get_price(user_id, source="binance", symbol="BTCUSDT", pair="XBTZAR"):
         raise ValueError(f"Unknown exchange source: {source}")
 
 def get_balance(user_id: str, source: str) -> dict:
+    print(f"Fetching balance for user: {user_id} on {source}")
     try:
         if source == "luno":
             headers = get_luno_auth_header(user_id)
             r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
+            print("Luno response:", r.text)
             r.raise_for_status()
             data = r.json().get("balance", [])
             return {
@@ -67,6 +69,7 @@ def get_balance(user_id: str, source: str) -> dict:
         elif source == "binance":
             client = get_binance_client(user_id)
             raw_balances = client.get_account()["balances"]
+            print("Binance balances:", raw_balances)
             return {
                 b["asset"]: float(b["free"])
                 for b in raw_balances
