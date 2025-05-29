@@ -113,6 +113,28 @@ def get_price_change(user, symbol, timeframe="1h"):
         logger.error(f"Error getting price change for {symbol}: {e}")
         return 0
 
+# --- Get Balance ---
+def get_balance(user, asset='USDT', exchange='binance'):
+    """
+    Fetches free balance of an asset from specified exchange.
+    Default is Binance USDT balance.
+    """
+    try:
+        if exchange == 'binance':
+            client = BinanceClient(api_key=user["binance_api_key"], api_secret=user["binance_api_secret"])
+            balance = client.get_asset_balance(asset=asset)
+            return float(balance['free']) if balance else 0.0
+        elif exchange == 'luno':
+            # Implement Luno balance fetching if needed
+            logger.warning("Luno balance fetch not implemented yet.")
+            return 0.0
+        else:
+            logger.warning(f"Unsupported exchange: {exchange}")
+            return 0.0
+    except Exception as e:
+        logger.error(f"Error getting balance for user {user['user_id']} on {exchange}: {e}")
+        return 0.0
+
 # --- Trade on Binance ---
 def trade_on_binance(user, action="buy", symbol="BTC/USDT", amount=None):
     try:
