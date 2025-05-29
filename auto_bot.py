@@ -2,7 +2,7 @@ import logging
 from importlib import import_module
 from firebase_admin import db
 from notifications_manager import evaluate_and_notify_user
-from balance_fetcher import get_user_balance  # assumes this module contains get_balance(user_id, platform)
+from balance_fetcher import get_user_balance  # Correct import and function
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +53,7 @@ def run_auto_bot():
         logger.info(f"[{user_id}] Checking balance before running strategy")
 
         try:
-            balances = get_balance(user_id, platform)
+            balances = get_user_balance(user_id, platform)  # ✅ fixed function call
             total_balance = sum(balances.values())
 
             if total_balance < 100:
