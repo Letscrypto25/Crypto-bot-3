@@ -13,7 +13,10 @@ from datetime import datetime
 import firebase_admin
 from urllib.parse import unquote
 from fastapi.security import HTTPBearer
+
+# Import your strategy loop
 from strategy_loop import strategy_loop
+
 from commands import (
     start, help_command, trade, stop_autobot,
     leaderboard, set_base, set_platform, set_strategy,
@@ -62,7 +65,8 @@ telegram_app.add_handler(CommandHandler("showconfig", show_config))
 telegram_app.add_handler(CommandHandler("register", register))
 telegram_app.add_handler(CommandHandler("login", login))
 telegram_app.add_handler(CommandHandler("balance", balance))
-telegram_app.add_handler(CommandHandler("startautobot", start_autobot))
+telegram_app.add_handler(CommandHandler("startautobot", start_autobot))  # make sure start_autobot imported
+
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
     log_ref = db.reference(f"logs/{user_id}")
@@ -167,6 +171,8 @@ async def start_bot():
         url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
     logger.info("Webhook set successfully.")
+
+    # Start your strategy loop as a background task on startup
     asyncio.create_task(strategy_loop())
 
 @app.on_event("shutdown")
