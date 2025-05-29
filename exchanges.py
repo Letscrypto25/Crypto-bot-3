@@ -50,3 +50,28 @@ def get_price(user_id, source="binance", symbol="BTCUSDT", pair="XBTZAR"):
         return get_luno_price(user_id, pair)
     else:
         raise ValueError(f"Unknown exchange source: {source}")
+
+def get_balance(symbol: str, user_id: str = None) -> float:
+    # Dummy version - Replace with real API call if needed
+    # Could use Binance or Luno here
+    try:
+        if symbol.endswith("ZAR"):
+            # Assume Luno
+            headers = get_luno_auth_header(user_id)
+            r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
+            r.raise_for_status()
+            balances = r.json().get("balance", [])
+            for asset in balances:
+                if asset["asset"] in symbol:
+                    return float(asset["balance"])
+        else:
+            # Assume Binance
+            client = get_binance_client(user_id)
+            asset = symbol.replace("USDT", "")  # e.g., BTC from BTCUSDT
+            balances = client.get_account()["balances"]
+            for b in balances:
+                if b["asset"] == asset:
+                    return float(b["free"])
+    except Exception as e:
+        print(f"[Balance Fetch] Error: {e}")
+        return 0.0
