@@ -4,7 +4,7 @@ from trading_api import (
     get_luno_price,
     trade_on_binance,
     trade_on_luno,
-    get_balance
+    get_user_balance
 )
 
 def execute(user):
