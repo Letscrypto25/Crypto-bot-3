@@ -1,11 +1,11 @@
 from firebase_admin import db
-from trading_api import get_price_history, trade_on_binance
+from trading_api import get_price_history, trade_on_binance, get_user_balance
 
 def execute(user):
     """
     Mean Reversion Strategy:
-    Trades when the current price deviates significantly from its recent average,
-    expecting a reversion to the mean. Updates results in Firebase.
+    Trades when current price deviates significantly from recent average.
+    Enforces R100 balance min and R50 trade min. Updates Firebase.
     """
     symbol = "BTC/USDT"
     interval = "1m"
@@ -16,8 +16,15 @@ def execute(user):
     profit_target = user.get("profit_target", 50)
 
     try:
-        price_history = get_price_history(user, symbol, interval, lookback)
+        # 💰 Check balance
+        balance = get_user_balance(user)
+        if balance is None or balance < 100:
+            print(f"[{user_id}] Balance too low: R{balance}. You need R100+ to trade this strategy.")
+            update_trade_result(user_id, 0, "low_balance")
+            return
 
+        # 📈 Get price history
+        price_history = get_price_history(user, symbol, interval, lookback)
         if not price_history or len(price_history) < lookback:
             print(f"[{user_id}] Not enough data for mean reversion strategy.")
             update_trade_result(user_id, 0, "error")
@@ -32,14 +39,26 @@ def execute(user):
         trade_result = "none"
         profit = 0
 
+        # 💡 Price ABOVE mean → SELL
         if deviation > 0.01:
+            if balance * risk < 50:
+                print(f"[{user_id}] Not enough to sell with R50 minimum. Trade size: R{balance * risk:.2f}")
+                update_trade_result(user_id, 0, "min_trade_not_met")
+                return
+
             print(f"[{user_id}] Price above mean → SELL")
             success = trade_on_binance(user, action="sell", symbol=symbol, amount=risk)
             if success:
                 profit = profit_target
                 trade_result = "profit"
 
+        # 📉 Price BELOW mean → BUY
         elif deviation < -0.01:
+            if balance * risk < 50:
+                print(f"[{user_id}] Not enough to buy with R50 minimum. Trade size: R{balance * risk:.2f}")
+                update_trade_result(user_id, 0, "min_trade_not_met")
+                return
+
             print(f"[{user_id}] Price below mean → BUY")
             success = trade_on_binance(user, action="buy", symbol=symbol, amount=risk)
             if success:
@@ -54,7 +73,6 @@ def execute(user):
     except Exception as e:
         print(f"[{user_id}] Mean Reversion strategy error: {e}")
         update_trade_result(user_id, 0, "error")
-
 
 def update_trade_result(user_id, profit, status):
     """
