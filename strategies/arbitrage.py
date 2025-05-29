@@ -1,5 +1,11 @@
 from firebase_admin import db
-from trading_api import get_binance_price, get_luno_price, trade_on_binance, trade_on_luno
+from trading_api import (
+    get_binance_price,
+    get_luno_price,
+    trade_on_binance,
+    trade_on_luno,
+    get_balance
+)
 
 def execute(user):
     """
@@ -8,10 +14,18 @@ def execute(user):
     """
     symbol = "BTC/USDT"
     user_id = user["user_id"]
+    platform = user.get("platform", "luno")
 
     # Settings with defaults
     risk_tolerance = user.get("risk_tolerance", 0.02)  # 2%
-    profit_target = user.get("profit_target", 50)      # Minimum profit threshold in USD/ZAR
+    profit_target = user.get("profit_target", 50)      # Minimum profit threshold in ZAR
+
+    # Check user balance (assumes get_balance returns ZAR equivalent)
+    balance = get_balance(user, platform)
+    if balance < 100:
+        print(f"[{user_id}] ✋ You need at least R100 to activate autobot. Chill and top up your wallet 😎")
+        update_trade_result(user_id, 0, "low_balance")
+        return
 
     try:
         binance_price = get_binance_price(user, symbol)
@@ -56,6 +70,13 @@ def attempt_arbitrage_trade(user, buy_exchange, sell_exchange, symbol, risk, pro
     Returns (profit, trade_result)
     """
     user_id = user["user_id"]
+    platform = user.get("platform", "luno")
+
+    balance = get_balance(user, platform)
+    if balance < 50:
+        print(f"[{user_id}] Minimum trade amount is R50. Current balance: R{balance:.2f}. No trade executed 🌱")
+        return 0, "low_trade_balance"
+
     try:
         buy_func = trade_on_binance if buy_exchange == "binance" else trade_on_luno
         sell_func = trade_on_binance if sell_exchange == "binance" else trade_on_luno
