@@ -18,7 +18,7 @@ from fastapi.security import HTTPBearer
 from strategy_loop import strategy_loop
 
 from commands import (
-    start, help_command, trade, stop_autobot, autobot,
+    start, help_command, trade, autobot,
     leaderboard, set_base, set_platform, set_strategy,
     set_amount, show_config, register, balance, start_autobot
 )
@@ -55,7 +55,7 @@ telegram_app = Application.builder().token(bot_token).build()
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("trade", trade))
-telegram_app.add_handler(CommandHandler("stopautobot", stop_autobot))
+#telegram_app.add_handler(CommandHandler("stopautobot", stop_autobot))
 telegram_app.add_handler(CommandHandler("leaderboard", leaderboard))
 telegram_app.add_handler(CommandHandler("setbase", set_base))
 telegram_app.add_handler(CommandHandler("setplatform", set_platform))
