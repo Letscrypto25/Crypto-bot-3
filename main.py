@@ -18,7 +18,7 @@ from fastapi.security import HTTPBearer
 from strategy_loop import strategy_loop
 
 from commands import (
-    start, help_command, trade, stop_autobot, start_autobot,
+    start, help_command, trade, stop_autobot, autobot,
     leaderboard, set_base, set_platform, set_strategy,
     set_amount, show_config, register, balance
 )
@@ -65,7 +65,7 @@ telegram_app.add_handler(CommandHandler("showconfig", show_config))
 telegram_app.add_handler(CommandHandler("register", register))
 telegram_app.add_handler(CommandHandler("login", login))
 telegram_app.add_handler(CommandHandler("balance", balance))
-telegram_app.add_handler(CommandHandler("startautobot", start_autobot))  # make sure start_autobot imported
+telegram_app.add_handler(CommandHandler("autobot", autobot))  # make sure autobot imported
 
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
