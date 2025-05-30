@@ -18,7 +18,7 @@ from fastapi.security import HTTPBearer
 from strategy_loop import strategy_loop
 
 from commands import (
-    start, help_command, trade, stop_autobot,
+    start, help_command, trade, stop_autobot, start_autobot,
     leaderboard, set_base, set_platform, set_strategy,
     set_amount, show_config, register, balance
 )
