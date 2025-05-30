@@ -19,8 +19,8 @@ from strategy_loop import strategy_loop
 
 from commands import (
     start, help_command, trade, autobot,
-    leaderboard, set_base, set_platform, set_strategy,
-    set_amount, show_config, register, balance, start_autobot
+    leaderboard, setbase, setplatform, setstrategy,
+    setamount, showconfig, register, balance, start_autobot
 )
 
 from utils import send_alert, format_trade_message
