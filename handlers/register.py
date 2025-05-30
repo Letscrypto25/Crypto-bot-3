@@ -1,7 +1,12 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from database import firebase_ref
-from utils import encrypt
+from encryption import ( 
+encrypt_data,
+decrypt_data, 
+hash_password, 
+verify_password
+)
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
