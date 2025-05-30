@@ -20,9 +20,9 @@ from strategy_loop import strategy_loop
 from commands import (
     start, help_command, trade, autobot,
     leaderboard, setbase, setplatform, setstrategy,
-    setamount, showconfig, register, start_autobot
+    setamount, showconfig, start_autobot
 )
-
+from commands.register import register
 from commands.balance import balance  # ✅ FIXED: direct function import
 
 from utils import send_alert, format_trade_message
