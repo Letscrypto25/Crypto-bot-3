@@ -24,7 +24,7 @@ from commands import (
 )
 
 from utils import send_alert, format_trade_message
-from auto_bot import run_auto_bot
+from commands.autobot import autobot  # ✅ import the function
 from database import get_user, get_autobot_status, create_user
 
 # === Load Environment Variables ===
