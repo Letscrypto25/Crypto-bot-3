@@ -1,29 +1,35 @@
+import logging
 from telegram import Update
 from telegram.ext import ContextTypes
-from database import firebase_ref
+from firebase_admin import db
 
-last_message_ids = {}
+logger = logging.getLogger(__name__)
 
 async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    msg_id = update.message.message_id
+    user_id = str(update.effective_user.id)
 
-    # Prevent duplicate processing
-    if last_message_ids.get(user_id) == msg_id:
-        return
-    last_message_ids[user_id] = msg_id
-
-    args = context.args
-    if len(args) != 1 or args[0].lower() not in ["enable", "disable"]:
+    if len(context.args) != 1 or context.args[0].lower() not in ["enable", "disable"]:
         await update.message.reply_text("Usage: /autobot enable|disable")
         return
 
-    status = args[0].lower()
+    action = context.args[0].lower()
     try:
-        # Save the autobot status in Firebase under user config
-        user_config_ref = firebase_ref.child("users").child(user_id).child("config")
-        user_config_ref.update({"autobot": status})
+        user_ref = db.reference(f"/users/{user_id}")
+        user_data = user_ref.get()
 
-        await update.message.reply_text(f"Autobot has been {status}d.")
+        if not user_data:
+            await update.message.reply_text("You're not registered yet. Use /register first.")
+            return
+
+        if action == "enable":
+            user_ref.update({"autobot_enabled": True})
+            await update.message.reply_text("✅ AutoBot is now *enabled* and will start trading automatically.", parse_mode="Markdown")
+        elif action == "disable":
+            user_ref.update({"autobot_enabled": False})
+            await update.message.reply_text("🛑 AutoBot has been *disabled*. No further trades will be made automatically.", parse_mode="Markdown")
+
+        logger.info(f"User {user_id} set AutoBot to {action.upper()}")
+
     except Exception as e:
-        await update.message.reply_text(f"Error updating autobot status: {e}")
+        logger.exception("AutoBot toggle error")
+        await update.message.reply_text("⚠️ Something went wrong while toggling AutoBot.")
