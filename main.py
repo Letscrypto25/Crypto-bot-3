@@ -20,7 +20,7 @@ from strategy_loop import strategy_loop
 from commands import (
     start, help_command, trade, stop_autobot, autobot,
     leaderboard, set_base, set_platform, set_strategy,
-    set_amount, show_config, register, balance
+    set_amount, show_config, register, balance, start_autobot
 )
 
 from utils import send_alert, format_trade_message
