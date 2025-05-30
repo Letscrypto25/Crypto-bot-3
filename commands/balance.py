@@ -3,6 +3,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from database import get_user_data
+from encryption import decrypt_data
 from exchanges import (
     get_binance_client,
     get_binance_price,
@@ -22,7 +23,11 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("You're not registered. Use /register first.")
             return
 
-        balances = get_balance(user_id=user_id, source=user["exchange"])
+        # Decrypt the sensitive data before using
+        user["api_key"] = decrypt_data(user["api_key"])
+        user["secret"] = decrypt_data(user["secret"])
+
+        balances = get_balance(user_id=user_id, source=user["exchange"], user_data=user)
         if not balances:
             await update.message.reply_text("Could not retrieve balance.")
             return
@@ -31,6 +36,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for coin, amount in balances.items():
             if float(amount) > 0:
                 msg += f"{coin}: {amount}\n"
+
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logger.exception("balance error")
