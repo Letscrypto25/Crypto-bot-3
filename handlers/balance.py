@@ -1,7 +1,14 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from firebase_admin import db
-from exchanges import get_price # Make sure this import is correct
+from exchanges import (
+    get_binance_client,
+    get_binance_price,
+    get_luno_auth_header,
+    get_luno_price,
+    get_price,
+    get_balance
+) # Make sure this import is correct
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
