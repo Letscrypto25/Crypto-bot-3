@@ -65,7 +65,7 @@ telegram_app.add_handler(CommandHandler("showconfig", showconfig))
 telegram_app.add_handler(CommandHandler("register", register))
 telegram_app.add_handler(CommandHandler("login", login))
 telegram_app.add_handler(CommandHandler("balance", balance))
-telegram_app.add_handler(CommandHandler("autobot", autobot))  # make sure autobot imported
+application.add_handler(CommandHandler("autobot", autobot)) # make sure autobot imported
 
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
