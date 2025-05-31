@@ -8,6 +8,17 @@ from exchanges import get_balance
 
 logger = logging.getLogger(__name__)
 
+def safe_decrypt(encrypted_value):
+    if not encrypted_value:
+        return None
+    try:
+        if isinstance(encrypted_value, bytes):
+            encrypted_value = encrypted_value.decode("utf-8")
+        return decrypt_data(encrypted_value)
+    except Exception as e:
+        logger.error(f"Decryption failed: {e}")
+        return None
+
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
@@ -19,7 +30,6 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         exchange = user["exchange"]
 
-        # Determine proper key names
         if exchange == "luno":
             api_key_encrypted = user.get("luno_api_key")
             secret_encrypted = user.get("luno_api_secret")
@@ -30,20 +40,15 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Unsupported exchange stored in your profile.")
             return
 
-        if not api_key_encrypted or not secret_encrypted:
-            await update.message.reply_text("⚠️ Missing API credentials. Please /register again.")
-            return
+        api_key = safe_decrypt(api_key_encrypted)
+        secret = safe_decrypt(secret_encrypted)
 
-        # Decrypt the credentials
-        decrypted_user = {
-            "exchange": exchange,
-            "api_key": decrypt_data(api_key_encrypted),
-            "secret": decrypt_data(secret_encrypted),
-        }
+        if not api_key or not secret:
+            await update.message.reply_text("⚠️ Your API credentials seem invalid or corrupted. Please /register again.")
+            return
 
         logger.info(f"Fetching balance for user: {user_id} on {exchange}")
 
-        # Get balances using the selected exchange
         balances = get_balance(user_id=user_id, source=exchange)
 
         if not balances:
