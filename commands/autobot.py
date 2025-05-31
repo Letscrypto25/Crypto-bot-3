@@ -2,15 +2,16 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 from firebase_admin import db
-from utils.firebase import migrate_keys
+from utils.firebase import migrate_keys  # ✅ migration helper
 
 logger = logging.getLogger(__name__)
 
-async def handle_balance(message, user_id):
-    migrate_keys(user_id)
-    
+
 async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
+
+    # 🔁 Migrate keys on any user interaction
+    migrate_keys(user_id)
 
     if len(context.args) != 1 or context.args[0].lower() not in ["enable", "disable"]:
         await update.message.reply_text("Usage: /autobot enable|disable")
@@ -27,10 +28,16 @@ async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if action == "enable":
             user_ref.update({"autobot_enabled": True})
-            await update.message.reply_text("✅ AutoBot is now *enabled* and will start trading automatically.", parse_mode="Markdown")
+            await update.message.reply_text(
+                "✅ AutoBot is now *enabled* and will start trading automatically.",
+                parse_mode="Markdown"
+            )
         elif action == "disable":
             user_ref.update({"autobot_enabled": False})
-            await update.message.reply_text("🛑 AutoBot has been *disabled*. No further trades will be made automatically.", parse_mode="Markdown")
+            await update.message.reply_text(
+                "🛑 AutoBot has been *disabled*. No further trades will be made automatically.",
+                parse_mode="Markdown"
+            )
 
         logger.info(f"User {user_id} set AutoBot to {action.upper()}")
 
