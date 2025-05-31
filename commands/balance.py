@@ -25,7 +25,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("You're not registered. Use /register first.")
             return
 
-        # Decrypt credentials
+        # Decrypt credentials (still needed for price or other features)
         decrypted_user = {
             "exchange": user["exchange"],
             "api_key": decrypt_data(user["api_key"]),
@@ -34,7 +34,8 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         logger.info(f"Fetching balance for user: {user_id} on {decrypted_user['exchange']}")
 
-        balances = get_balance(user_id=user_id, source=decrypted_user["exchange"], user=decrypted_user)
+        # ✅ ONLY user_id and exchange are needed here
+        balances = get_balance(user_id=user_id, source=decrypted_user["exchange"])
 
         if not balances:
             await update.message.reply_text("Could not retrieve balance.")
