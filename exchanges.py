@@ -2,6 +2,18 @@ import base64
 import requests
 from firebase_admin import db
 from binance.client import Client as BinanceClient
+from cryptography.fernet import Fernet
+import os
+
+# === Fernet Setup ===
+SECRET_KEY = os.getenv("SECRET_KEY")  # e.g. "nSGfGz_aOcK9i3S6cvlB3mDiSfqNyCwJ_fZ1L6bXb1o="
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is not set")
+fernet = Fernet(SECRET_KEY.encode())
+
+def decrypt_api_key(encrypted_key: str) -> str:
+    """Decrypt encrypted API keys stored in Firebase."""
+    return fernet.decrypt(encrypted_key.encode()).decode()
 
 # === Binance ===
 def get_binance_client(user_id):
@@ -24,13 +36,16 @@ def get_binance_price(user_id, symbol="BTCUSDT"):
 # === Luno ===
 def get_luno_auth_header(user_id):
     user_data = db.reference(f"/users/{user_id}").get()
-    key = user_data.get("api_key")   # or consider renaming in DB to luno_api_key
-    secret = user_data.get("secret") # or luno_api_secret
-    if not key or not secret:
+    encrypted_key = user_data.get("api_key")   # Encrypted key from Firebase
+    encrypted_secret = user_data.get("secret") # Encrypted secret from Firebase
+    if not encrypted_key or not encrypted_secret:
         raise ValueError("Missing Luno API credentials for user.")
+    # Decrypt keys before use
+    key = decrypt_api_key(encrypted_key)
+    secret = decrypt_api_key(encrypted_secret)
     auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
     return {"Authorization": f"Basic {auth}"}
-
+    
 def get_luno_price(user_id, pair="XBTZAR"):
     try:
         url = f"https://api.luno.com/api/1/ticker?pair={pair}"
@@ -51,17 +66,22 @@ def get_price(user_id, source="binance", symbol="BTCUSDT", pair="XBTZAR"):
     else:
         raise ValueError(f"Unknown exchange source: {source}")
 
-# === Updated get_balance ===
 def get_balance(user_id: str, source: str, user=None) -> dict:
     print(f"Fetching balance for user: {user_id} on {source}")
     try:
         if source == "luno":
-            # Fetch Luno API keys inside the function from Firebase
-            user_data = db.reference(f"/users/{user_id}").get()
-            key = user_data.get("api_key")
-            secret = user_data.get("secret")
-            if not key or not secret:
-                raise ValueError("Missing Luno API credentials for user.")
+            # Decrypt keys if user dict not passed
+            if user is None:
+                user_data = db.reference(f"/users/{user_id}").get()
+                encrypted_key = user_data.get("api_key")
+                encrypted_secret = user_data.get("secret")
+                if not encrypted_key or not encrypted_secret:
+                    raise ValueError("Missing Luno API credentials for user.")
+                key = decrypt_api_key(encrypted_key)
+                secret = decrypt_api_key(encrypted_secret)
+            else:
+                key = user["api_key"]
+                secret = user["secret"]
             auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
             headers = {"Authorization": f"Basic {auth}"}
             r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
