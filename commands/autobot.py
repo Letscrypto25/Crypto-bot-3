@@ -2,9 +2,13 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 from firebase_admin import db
+from utils.firebase import migrate_keys
 
 logger = logging.getLogger(__name__)
 
+async def handle_balance(message, user_id):
+    migrate_keys(user_id)
+    
 async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
