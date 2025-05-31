@@ -3,7 +3,15 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from database import get_user_data
 from encryption import decrypt_data
-from exchanges import get_balance
+from exchanges import (
+    get_binance_client,
+    get_binance_price,
+    get_luno_auth_header,
+    get_luno_price,
+    get_price,
+    get_balance
+) # Make sure this import is correct
+
 import logging
 
 logger = logging.getLogger(__name__)
