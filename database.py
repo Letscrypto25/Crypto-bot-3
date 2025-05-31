@@ -256,4 +256,4 @@ def set_autobot_base(user_id, base: str):
 def set_autobot_amount(user_id, amount: float):
     try:
         db.reference(f'users/{user_id}/autobot/amount').set(amount)
-        logger.info(f"Set autobot amount {amount} for user {user
+        logger.info(f"Set autobot amount {amount} for user {user}")
