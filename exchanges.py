@@ -24,13 +24,13 @@ def get_binance_price(user_id, symbol="BTCUSDT"):
 # === Luno ===
 def get_luno_auth_header(user_id):
     user_data = db.reference(f"/users/{user_id}").get()
-    key = user_data.get("api_key")   # changed from luno_api_key
-    secret = user_data.get("secret") # changed from luno_api_secret
+    key = user_data.get("api_key")   # or consider renaming in DB to luno_api_key
+    secret = user_data.get("secret") # or luno_api_secret
     if not key or not secret:
         raise ValueError("Missing Luno API credentials for user.")
     auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
     return {"Authorization": f"Basic {auth}"}
-    
+
 def get_luno_price(user_id, pair="XBTZAR"):
     try:
         url = f"https://api.luno.com/api/1/ticker?pair={pair}"
@@ -51,12 +51,17 @@ def get_price(user_id, source="binance", symbol="BTCUSDT", pair="XBTZAR"):
     else:
         raise ValueError(f"Unknown exchange source: {source}")
 
+# === Updated get_balance ===
 def get_balance(user_id: str, source: str, user=None) -> dict:
     print(f"Fetching balance for user: {user_id} on {source}")
     try:
         if source == "luno":
-            key = user["api_key"]
-            secret = user["secret"]
+            # Fetch Luno API keys inside the function from Firebase
+            user_data = db.reference(f"/users/{user_id}").get()
+            key = user_data.get("api_key")
+            secret = user_data.get("secret")
+            if not key or not secret:
+                raise ValueError("Missing Luno API credentials for user.")
             auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
             headers = {"Authorization": f"Basic {auth}"}
             r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
