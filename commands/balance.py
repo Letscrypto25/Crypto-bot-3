@@ -1,3 +1,4 @@
+import logging
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -10,22 +11,24 @@ from exchanges import (
     get_luno_price,
     get_price,
     get_balance
-) # Make sure this import is correct
-
-import logging
+)
+from utils.firebase import migrate_keys  # ✅ Added migration logic
 
 logger = logging.getLogger(__name__)
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
-    try:
-        user = get_user_data(user_id)
 
+    try:
+        # ✅ Ensure data is migrated from legacy format to consistent format
+        migrate_keys(user_id)
+
+        user = get_user_data(user_id)
         if not user or "exchange" not in user:
-            await update.message.reply_text("You're not registered. Use /register first.")
+            await update.message.reply_text("🚫 You're not registered. Use /register first.")
             return
 
-        # Decrypt credentials (still needed for price or other features)
+        # 🔐 Decrypt credentials for further use
         decrypted_user = {
             "exchange": user["exchange"],
             "api_key": decrypt_data(user["api_key"]),
@@ -34,20 +37,20 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         logger.info(f"Fetching balance for user: {user_id} on {decrypted_user['exchange']}")
 
-        # ✅ ONLY user_id and exchange are needed here
+        # ✅ Only user_id and exchange are needed now
         balances = get_balance(user_id=user_id, source=decrypted_user["exchange"])
 
         if not balances:
-            await update.message.reply_text("Could not retrieve balance.")
+            await update.message.reply_text("⚠️ Could not retrieve balance.")
             return
 
-        msg = "*Your Balance:*\n"
+        msg = "*💰 Your Balance:*\n"
         for coin, amount in balances.items():
             if float(amount) > 0:
-                msg += f"{coin}: {amount}\n"
+                msg += f"• `{coin}`: `{amount}`\n"
 
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
 
     except Exception as e:
         logger.exception("balance error")
-        await update.message.reply_text("An error occurred while fetching your balance.")
+        await update.message.reply_text("❌ An error occurred while fetching your balance.")
