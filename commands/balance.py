@@ -4,14 +4,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from database import get_user_data
 from encryption import decrypt_data
-from exchanges import (
-    get_binance_client,
-    get_binance_price,
-    get_luno_auth_header,
-    get_luno_price,
-    get_price,
-    get_balance
-)
+from exchanges import get_balance
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +16,15 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("You're not registered. Use /register first.")
             return
 
-        # Decrypt the sensitive data before using
-        user["api_key"] = decrypt_data(user["api_key"])
-        user["secret"] = decrypt_data(user["secret"])
+        # Decrypt the sensitive data and temporarily inject them into Firebase for backward-compatible get_balance
+        decrypted_user = {
+            "exchange": user["exchange"],
+            "api_key": decrypt_data(user["api_key"]),
+            "secret": decrypt_data(user["secret"]),
+        }
 
-        balances = get_balance(user_id=user_id, source=user["exchange"], user_data=user)
+        # Call get_balance as if it fetches its own data
+        balances = get_balance(user_id=user_id, source=decrypted_user["exchange"])
         if not balances:
             await update.message.reply_text("Could not retrieve balance.")
             return
