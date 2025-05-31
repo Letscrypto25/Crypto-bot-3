@@ -19,18 +19,32 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         exchange, api_key, secret = context.args
+        exchange = exchange.lower()
 
         # Encrypt sensitive data before storing
         encrypted_api_key = encrypt_data(api_key)
         encrypted_secret = encrypt_data(secret)
 
-        firebase_ref.child(user_id).update({
-            "exchange": exchange.lower(),
-            "api_key": encrypted_api_key,
-            "secret": encrypted_secret
-        })
+        # Prepare exchange-specific field names
+        if exchange == "luno":
+            updates = {
+                "exchange": exchange,
+                "luno_api_key": encrypted_api_key,
+                "luno_api_secret": encrypted_secret
+            }
+        elif exchange == "binance":
+            updates = {
+                "exchange": exchange,
+                "binance_api_key": encrypted_api_key,
+                "binance_api_secret": encrypted_secret
+            }
+        else:
+            await update.message.reply_text("❌ Unsupported exchange. Use 'luno' or 'binance'.")
+            return
 
+        firebase_ref.child(user_id).update(updates)
         await update.message.reply_text("✅ Registered successfully with your exchange details.")
+
     except Exception as e:
         logger.exception("register error")
         await update.message.reply_text("❌ An error occurred during registration.")
