@@ -4,15 +4,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from database import get_user_data
 from encryption import decrypt_data
-from exchanges import (
-    get_binance_client,
-    get_binance_price,
-    get_luno_auth_header,
-    get_luno_price,
-    get_price,
-    get_balance
-)
-from utils.firebase import migrate_keys  # ✅ Added migration logic
+from exchanges import get_balance
 
 logger = logging.getLogger(__name__)
 
@@ -20,25 +12,39 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     try:
-        # ✅ Ensure data is migrated from legacy format to consistent format
-        migrate_keys(user_id)
-
         user = get_user_data(user_id)
         if not user or "exchange" not in user:
             await update.message.reply_text("🚫 You're not registered. Use /register first.")
             return
 
-        # 🔐 Decrypt credentials for further use
+        exchange = user["exchange"]
+
+        # Determine proper key names
+        if exchange == "luno":
+            api_key_encrypted = user.get("luno_api_key")
+            secret_encrypted = user.get("luno_api_secret")
+        elif exchange == "binance":
+            api_key_encrypted = user.get("binance_api_key")
+            secret_encrypted = user.get("binance_api_secret")
+        else:
+            await update.message.reply_text("❌ Unsupported exchange stored in your profile.")
+            return
+
+        if not api_key_encrypted or not secret_encrypted:
+            await update.message.reply_text("⚠️ Missing API credentials. Please /register again.")
+            return
+
+        # Decrypt the credentials
         decrypted_user = {
-            "exchange": user["exchange"],
-            "api_key": decrypt_data(user["api_key"]),
-            "secret": decrypt_data(user["secret"]),
+            "exchange": exchange,
+            "api_key": decrypt_data(api_key_encrypted),
+            "secret": decrypt_data(secret_encrypted),
         }
 
-        logger.info(f"Fetching balance for user: {user_id} on {decrypted_user['exchange']}")
+        logger.info(f"Fetching balance for user: {user_id} on {exchange}")
 
-        # ✅ Only user_id and exchange are needed now
-        balances = get_balance(user_id=user_id, source=decrypted_user["exchange"])
+        # Get balances using the selected exchange
+        balances = get_balance(user_id=user_id, source=exchange)
 
         if not balances:
             await update.message.reply_text("⚠️ Could not retrieve balance.")
