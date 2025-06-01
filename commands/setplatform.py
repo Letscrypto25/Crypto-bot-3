@@ -4,7 +4,7 @@ from telegram.ext import CallbackContext
 # Store user platform selection here, replace with DB for real app
 user_platforms = {}
 
-def setplatform(update: Update, context: CallbackContext):
+def setplatform_command(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     args = context.args
 
