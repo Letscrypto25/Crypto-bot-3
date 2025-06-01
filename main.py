@@ -31,7 +31,7 @@ from commands.balance import balance_command
 from commands.register import register_command# ✅ FIXED: direct function import
 
 from utils import send_alert, format_trade_message
-from commands.autobot import autobot  # ✅ import the function
+from commands.autobot import autobot_command  # ✅ import the function
 from database import get_user, get_autobot_status, create_user
 
 # === Load Environment Variables ===
