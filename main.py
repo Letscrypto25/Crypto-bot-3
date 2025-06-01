@@ -66,7 +66,7 @@ telegram_app.add_handler(CommandHandler("setamount", setamount))
 telegram_app.add_handler(CommandHandler("showconfig", showconfig))
 telegram_app.add_handler(CommandHandler("register", register))
 telegram_app.add_handler(CommandHandler("login", login))
-telegram_app.add_handler(CommandHandler("balance", balance))  # ✅ fixed
+telegram_app.add_handler(CommandHandler("balance", handle_balance))  # ✅ fixed
 telegram_app.add_handler(CommandHandler("autobot", autobot))  # ✅
 
 # === Firebase Logging ===
