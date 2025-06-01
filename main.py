@@ -17,20 +17,21 @@ from fastapi.security import HTTPBearer
 # Import your strategy loop
 from strategy_loop import strategy_loop
 
-from commands.start import start
-from commands import *
-from commands.trade import trade
-from commands.autobot import autobot, start_autobot
-from commands.leaderboard import leaderboard
-from commands.setbase import setbase
-from commands.setplatform import setplatform
-from commands.setstrategy import setstrategy
-from commands.setamount import setamount
-from commands.showconfig import showconfig
-from commands.balance import balance
-from commands.register import register
+from commands.start import start_command
+from commands.help import help_command
+from commands.trade import trade_command
+from commands.autobot import autobot_commamd, start_autobot_command
+from commands.leaderboard import leaderboard_command
+from commands.setbase import setbase_command
+from commands.setplatform import setplatform_command
+from commands.setstrategy import setstrategy_command
+from commands.setamount import setamount_command
+from commands.showconfig import showconfig_command
+from commands.balance import balance_command
+from commands.register import register_command# ✅ FIXED: direct function import
 
 from utils import send_alert, format_trade_message
+from commands.autobot import autobot  # ✅ import the function
 from database import get_user, get_autobot_status, create_user
 
 # === Load Environment Variables ===
@@ -58,20 +59,20 @@ security = HTTPBearer()
 telegram_app = Application.builder().token(bot_token).build()
 
 # === Register Handlers for all commands ===
-telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("start", start_command))
 telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("trade", trade))
-telegram_app.add_handler(CommandHandler("start_autobot", start_autobot))
-telegram_app.add_handler(CommandHandler("leaderboard", leaderboard))
-telegram_app.add_handler(CommandHandler("setbase", setbase))
-telegram_app.add_handler(CommandHandler("setplatform", setplatform))
-telegram_app.add_handler(CommandHandler("setstrategy", setstrategy))
-telegram_app.add_handler(CommandHandler("setamount", setamount))
-telegram_app.add_handler(CommandHandler("showconfig", showconfig))
-telegram_app.add_handler(CommandHandler("register", register))
-telegram_app.add_handler(CommandHandler("login", login))
-telegram_app.add_handler(CommandHandler("balance", balance))
-telegram_app.add_handler(CommandHandler("autobot", autobot))
+telegram_app.add_handler(CommandHandler("start_autobot", start_autobot_command))
+telegram_app.add_handler(CommandHandler("leaderboard", leaderboard_command))
+telegram_app.add_handler(CommandHandler("setbase", setbase_command))
+telegram_app.add_handler(CommandHandler("setplatform", setplatform_command))
+telegram_app.add_handler(CommandHandler("setstrategy", setstrategy_command))
+telegram_app.add_handler(CommandHandler("setamount", setamount_command))
+telegram_app.add_handler(CommandHandler("showconfig", showconfig_command))
+telegram_app.add_handler(CommandHandler("register", register_command))
+telegram_app.add_handler(CommandHandler("login", login_command))
+telegram_app.add_handler(CommandHandler("balance", balance_command))  # ✅ fixed
+telegram_app.add_handler(CommandHandler("autobot", autobot_command))  # ✅
 
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
@@ -86,7 +87,7 @@ def log_event(user_id, event_type, message_text, status="ok", error=None):
         log_entry["error"] = str(error)
     log_ref.push(log_entry)
 
-# === Telegram Webhook Endpoint ===
+# === Combined Telegram Webhook with legacy logic ===
 @app.post("/webhook/{token}")
 async def telegram_webhook(request: Request, token: str):
     token = unquote(token)
@@ -95,25 +96,68 @@ async def telegram_webhook(request: Request, token: str):
 
     try:
         data = await request.json()
-        update = Update.de_json(data, telegram_app.bot)
-        await telegram_app.process_update(update)
+    except Exception as e:
+        logger.error(f"Failed to parse JSON from webhook request: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    try:
+        if "update_id" in data:
+            update = Update.de_json(data, telegram_app.bot)
+            await telegram_app.process_update(update)
+        else:
+            message = data.get("message", {})
+            chat_id = message.get("chat", {}).get("id")
+            text = message.get("text", "")
+
+            if not chat_id:
+                return {"ok": False}
+
+            user_id = str(chat_id)
+            user = get_user(user_id)
+
+            if not user:
+                create_user(user_id)
+                send_alert("Welcome! Your crypto bot profile has been created.", chat_id)
+                log_event(user_id, "new_user", text)
+                return {"ok": True}
+
+            if text.startswith("/"):
+                try:
+                    response = handle_command(text, user_id)
+                    if response:
+                        send_alert(response, chat_id)
+                    log_event(user_id, "command", text)
+                except Exception as e:
+                    send_alert(f"Command error for user {user_id}: {e}", chat_id)
+                    send_alert("Oops, there was an error handling your command.", chat_id)
+                    log_event(user_id, "command", text, status="error", error=e)
+                return {"ok": True}
+
+            try:
+                if get_autobot_status(user_id):
+                    run_auto_bot(user_id)
+                    log_event(user_id, "autobot", text)
+            except Exception as e:
+                send_alert(f"AutoBot error for {user_id}: {e}", chat_id)
+                send_alert("Error running AutoBot. Check your settings.", chat_id)
+                log_event(user_id, "autobot", text, status="error", error=e)
+
     except Exception as e:
         logger.error(f"Webhook processing error: {e}")
         raise HTTPException(status_code=400, detail="Invalid Telegram update")
 
     return {"ok": True}
 
-# === Root Endpoint ===
 @app.get("/")
 def root():
     return {"message": "Crypto Bot is live"}
 
-# === Startup Event ===
 @app.on_event("startup")
 async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
 
+    # Set all commands for Telegram UI
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
         ("help", "Show help info"),
@@ -135,10 +179,9 @@ async def start_bot():
     )
     logger.info("Webhook set successfully.")
 
-    # Start strategy loop as background task
+    # Start your strategy loop as a background task on startup
     asyncio.create_task(strategy_loop())
 
-# === Shutdown Event ===
 @app.on_event("shutdown")
 async def stop_bot():
     logger.info("Stopping Telegram bot...")
