@@ -174,10 +174,27 @@ async def start_bot():
         ("balance", "Check your crypto balance"),
     ])
 
+    @app.post("/webhook/{token}")
+async def telegram_webhook(request: Request, token: str):
+    token = unquote(token)
+    if token != bot_token:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        data = await request.json()
+        update = Update.de_json(data, telegram_app.bot)
+        await telegram_app.process_update(update)
+    except Exception as e:
+        logger.error(f"Webhook processing error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid Telegram update")
+
+    return {"ok": True}
+
     await telegram_app.bot.set_webhook(
         url=f"https://{fly_app}.fly.dev/webhook/{bot_token}"
     )
     logger.info("Webhook set successfully.")
+
 
     # Start your strategy loop as a background task on startup
     asyncio.create_task(strategy_loop())
