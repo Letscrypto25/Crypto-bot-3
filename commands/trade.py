@@ -7,7 +7,7 @@ from exchanges import get_price
 
 logger = logging.getLogger(__name__)
 
-async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     user_data = get_user_data(user_id)
 
