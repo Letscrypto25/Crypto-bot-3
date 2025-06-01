@@ -5,7 +5,7 @@ from auto_bot import run_auto_bot
 from database import get_user
 from firebase_admin import db
 
-async def start_autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_autobot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_chat.id)
 
     user = get_user(user_id)
