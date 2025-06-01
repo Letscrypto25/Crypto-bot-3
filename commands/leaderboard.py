@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from database import firebase_ref
 
-async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         users_ref = firebase_ref.child("users")
         users_snapshot = users_ref.get()
