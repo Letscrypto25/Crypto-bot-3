@@ -17,7 +17,7 @@ from fastapi.security import HTTPBearer
 # Import your strategy loop
 from strategy_loop import strategy_loop
 
-from commands.start import handle_start
+from commands.start import start
 from commands.help_command import help_command
 from commands.trade import trade
 from commands.autobot import autobot, start_autobot
@@ -27,9 +27,8 @@ from commands.setplatform import setplatform
 from commands.setstrategy import setstrategy
 from commands.setamount import setamount
 from commands.showconfig import showconfig
-from commands.balance import handle_balance
-from commands.register import register
-from commands.balance import balance  # ✅ FIXED: direct function import
+from commands.balance import balance
+from commands.register import register # ✅ FIXED: direct function import
 
 from utils import send_alert, format_trade_message
 from commands.autobot import autobot  # ✅ import the function
