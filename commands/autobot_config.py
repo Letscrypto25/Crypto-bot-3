@@ -3,7 +3,7 @@ from telegram.ext import CallbackContext
 from utils.firebase import migrate_keys
 from firebase_admin import db
 
-def autobot_config(update: Update, context: CallbackContext):
+def autobot_config_command(update: Update, context: CallbackContext):
     user_id = str(update.effective_user.id)
     args = context.args
 
