@@ -7,7 +7,7 @@ from utils.firebase import migrate_keys  # ✅ migration helper
 logger = logging.getLogger(__name__)
 
 
-async def autobot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def autobot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     # 🔁 Migrate keys on any user interaction
