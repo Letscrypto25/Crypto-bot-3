@@ -18,7 +18,7 @@ Here's what you can do:
 _You're all set. Let's grow your crypto journey together! 🚀_
 """
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
 
