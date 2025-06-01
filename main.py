@@ -17,11 +17,17 @@ from fastapi.security import HTTPBearer
 # Import your strategy loop
 from strategy_loop import strategy_loop
 
-from commands import (
-    start, help_command, trade, autobot,
-    leaderboard, setbase, setplatform, setstrategy,
-    setamount, showconfig, start_autobot
-)
+from commands.start import handle_start
+from commands.help_command import help_command
+from commands.trade import trade
+from commands.autobot import autobot, start_autobot
+from commands.leaderboard import leaderboard
+from commands.setbase import setbase
+from commands.setplatform import setplatform
+from commands.setstrategy import setstrategy
+from commands.setamount import setamount
+from commands.showconfig import showconfig
+from commands.balance import handle_balance
 from commands.register import register
 from commands.balance import balance  # ✅ FIXED: direct function import
 
@@ -57,7 +63,7 @@ telegram_app = Application.builder().token(bot_token).build()
 telegram_app.add_handler(CommandHandler("start", handle_start))
 telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("trade", trade))
-telegram_app.add_handler(CommandHandler("strart_autobot", start_autobot))
+telegram_app.add_handler(CommandHandler("start_autobot", start_autobot))
 telegram_app.add_handler(CommandHandler("leaderboard", leaderboard))
 telegram_app.add_handler(CommandHandler("setbase", setbase))
 telegram_app.add_handler(CommandHandler("setplatform", setplatform))
