@@ -3,7 +3,7 @@ from telegram.ext import CallbackContext
 
 user_amounts = {}
 
-def setamount(update: Update, context: CallbackContext):
+def setamount_command(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     args = context.args
 
