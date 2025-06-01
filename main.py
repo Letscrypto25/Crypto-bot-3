@@ -18,7 +18,7 @@ from fastapi.security import HTTPBearer
 from strategy_loop import strategy_loop
 
 from commands.start import start
-from commands.help_command import help_command
+from commands import *
 from commands.trade import trade
 from commands.autobot import autobot, start_autobot
 from commands.leaderboard import leaderboard
