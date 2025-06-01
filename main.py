@@ -54,7 +54,7 @@ security = HTTPBearer()
 telegram_app = Application.builder().token(bot_token).build()
 
 # === Register Handlers for all commands ===
-telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("start", handle_start))
 telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("trade", trade))
 telegram_app.add_handler(CommandHandler("strart_autobot", start_autobot))
