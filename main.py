@@ -60,7 +60,7 @@ security = HTTPBearer()
 telegram_app = Application.builder().token(bot_token).build()
 
 # === Register Handlers for all commands ===
-telegram_app.add_handler(CommandHandler("start", handle_start))
+telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("trade", trade))
 telegram_app.add_handler(CommandHandler("start_autobot", start_autobot))
@@ -72,7 +72,7 @@ telegram_app.add_handler(CommandHandler("setamount", setamount))
 telegram_app.add_handler(CommandHandler("showconfig", showconfig))
 telegram_app.add_handler(CommandHandler("register", register))
 telegram_app.add_handler(CommandHandler("login", login))
-telegram_app.add_handler(CommandHandler("balance", handle_balance))  # ✅ fixed
+telegram_app.add_handler(CommandHandler("balance", balance))  # ✅ fixed
 telegram_app.add_handler(CommandHandler("autobot", autobot))  # ✅
 
 # === Firebase Logging ===
