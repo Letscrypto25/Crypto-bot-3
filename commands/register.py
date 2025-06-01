@@ -11,7 +11,7 @@ from encryption import (
 
 logger = logging.getLogger(__name__)
 
-async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     try:
         if len(context.args) != 3:
