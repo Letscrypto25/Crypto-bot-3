@@ -8,7 +8,7 @@ user_amounts = {}
 user_bases = {}
 user_autobot_status = {}
 
-def showconfig(update: Update, context: CallbackContext):
+def showconfig_command(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
 
     platform = user_platforms.get(user_id, "Not set")
