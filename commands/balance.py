@@ -19,7 +19,7 @@ def safe_decrypt(encrypted_value):
         logger.error(f"Decryption failed: {e}")
         return None
 
-async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     try:
