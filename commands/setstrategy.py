@@ -3,7 +3,7 @@ from telegram.ext import CallbackContext
 
 user_strategies = {}
 
-def setstrategy(update: Update, context: CallbackContext):
+def setstrategy_command(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     args = context.args
 
