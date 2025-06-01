@@ -1,4 +1,4 @@
-from .start import start
+from .start import start_command
 from .help import help_command
 from .balance import balance_command
 from .trade import trade_command
