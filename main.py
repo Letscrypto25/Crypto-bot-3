@@ -3,7 +3,7 @@ import asyncio
 import json
 import os
 import logging
-from handlers import login
+#from handlers import login
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler
@@ -70,7 +70,7 @@ telegram_app.add_handler(CommandHandler("setstrategy", setstrategy_command))
 telegram_app.add_handler(CommandHandler("setamount", setamount_command))
 telegram_app.add_handler(CommandHandler("showconfig", showconfig_command))
 telegram_app.add_handler(CommandHandler("register", register_command))
-telegram_app.add_handler(CommandHandler("login", login_command))
+#telegram_app.add_handler(CommandHandler("login", login_command))
 telegram_app.add_handler(CommandHandler("balance", balance_command))  # ✅ fixed
 telegram_app.add_handler(CommandHandler("autobot", autobot_command))  # ✅
 
