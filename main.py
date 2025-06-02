@@ -16,7 +16,7 @@ from fastapi.security import HTTPBearer
 
 # Import your strategy loop
 from strategy_loop import strategy_loop
-
+from handlers.login import login
 from commands.start import start_command
 from commands.help import help_command
 from commands.trade import trade_command
