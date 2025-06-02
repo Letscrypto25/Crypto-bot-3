@@ -61,7 +61,7 @@ telegram_app = Application.builder().token(bot_token).build()
 # === Register Handlers for all commands ===
 telegram_app.add_handler(CommandHandler("start", start_command))
 telegram_app.add_handler(CommandHandler("help", help_command))
-telegram_app.add_handler(CommandHandler("trade", trade))
+telegram_app.add_handler(CommandHandler("trade", trade_command))
 #telegram_app.add_handler(CommandHandler("start_autobot", start_autobot_command))
 telegram_app.add_handler(CommandHandler("leaderboard", leaderboard_command))
 telegram_app.add_handler(CommandHandler("setbase", setbase_command))
