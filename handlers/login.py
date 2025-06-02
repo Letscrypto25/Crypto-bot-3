@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 from database import firebase_ref
 from encryption import verify_password
 
-async def login(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
     args = context.args
