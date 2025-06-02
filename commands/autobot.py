@@ -1,46 +1,38 @@
-import logging
+# commands/autobot.py
+
 from telegram import Update
 from telegram.ext import ContextTypes
+from database import get_autobot_status, set_autobot_status
+from utils import send_alert
 from firebase_admin import db
-from utils.firebase import migrate_keys  # ✅ migration helper
 
-logger = logging.getLogger(__name__)
-
+def migrate_keys(user_id):
+    # Optional: any logic you want for migrating keys or updating structure
+    pass
 
 async def autobot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
+    chat_id = update.effective_chat.id
 
-    # 🔁 Migrate keys on any user interaction
     migrate_keys(user_id)
 
-    if len(context.args) != 1 or context.args[0].lower() not in ["enable", "disable"]:
-        await update.message.reply_text("Usage: /autobot enable|disable")
-        return
-
-    action = context.args[0].lower()
     try:
-        user_ref = db.reference(f"/users/{user_id}")
-        user_data = user_ref.get()
+        current_status = get_autobot_status(user_id)
+        new_status = not current_status
 
-        if not user_data:
-            await update.message.reply_text("You're not registered yet. Use /register first.")
-            return
+        set_autobot_status(user_id, new_status)
 
-        if action == "enable":
-            user_ref.update({"autobot_enabled": True})
-            await update.message.reply_text(
-                "✅ AutoBot is now *enabled* and will start trading automatically.",
-                parse_mode="Markdown"
-            )
-        elif action == "disable":
-            user_ref.update({"autobot_enabled": False})
-            await update.message.reply_text(
-                "🛑 AutoBot has been *disabled*. No further trades will be made automatically.",
-                parse_mode="Markdown"
-            )
+        if new_status:
+            send_alert("✅ AutoBot started. It will trade based on your config.", chat_id)
+        else:
+            send_alert("🛑 AutoBot stopped.", chat_id)
 
-        logger.info(f"User {user_id} set AutoBot to {action.upper()}")
+        log_ref = db.reference(f"logs/{user_id}")
+        log_ref.push({
+            "timestamp": update.effective_message.date.isoformat(),
+            "event": "autobot_toggle",
+            "status": "on" if new_status else "off"
+        })
 
     except Exception as e:
-        logger.exception("AutoBot toggle error")
-        await update.message.reply_text("⚠️ Something went wrong while toggling AutoBot.")
+        send_alert(f"⚠️ Error toggling AutoBot: {e}", chat_id)
