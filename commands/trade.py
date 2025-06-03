@@ -1,12 +1,3 @@
-import logging
-from datetime import datetime
-from telegram import Update
-from telegram.ext import ContextTypes
-from database import get_user_data, save_trade
-from exchanges import get_price
-
-logger = logging.getLogger(__name__)
-
 async def trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     user_data = get_user_data(user_id)
@@ -16,21 +7,27 @@ async def trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        action = context.args[0].upper()
-        symbol = context.args[1].upper()
-        amount = float(context.args[2])
-    except (IndexError, ValueError):
-        await update.message.reply_text("Usage: /trade <BUY/SELL> <SYMBOL> <AMOUNT>")
-        return
-
-    try:
-        exchange = user_data.get("exchange")
-        price = get_price(user_id=user_id, source=exchange, symbol=symbol)
-
-        if not price:
-            await update.message.reply_text("Failed to fetch price.")
+        # Parse args
+        if len(context.args) < 3:
+            await update.message.reply_text("Usage: /trade <BUY/SELL> <SYMBOL> <AMOUNT>")
             return
 
+        action = context.args[0].upper()
+        if action not in ("BUY", "SELL"):
+            await update.message.reply_text("Invalid action. Use BUY or SELL.")
+            return
+
+        symbol = context.args[1].upper()
+        amount = float(context.args[2])
+
+        # Get price
+        exchange = user_data.get("exchange")
+        price = get_price(user_id=user_id, source=exchange, symbol=symbol)
+        if not price:
+            await update.message.reply_text("❌ Failed to fetch price.")
+            return
+
+        # Save trade
         trade_record = {
             "symbol": symbol,
             "amount": amount,
@@ -39,8 +36,8 @@ async def trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "timestamp": datetime.utcnow().isoformat()
         }
         save_trade(user_id, trade_record)
-        await update.message.reply_text(f"{action} {amount} {symbol} at {price} — Executed")
+        await update.message.reply_text(f"✅ {action} {amount} {symbol} at {price} — Executed")
 
     except Exception as e:
         logger.exception("Trade error")
-        await update.message.reply_text(f"Trade failed: {e}")
+        await update.message.reply_text(f"❌ Trade failed: {e}")
