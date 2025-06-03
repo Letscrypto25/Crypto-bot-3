@@ -8,22 +8,12 @@ from exchanges import get_balance
 
 logger = logging.getLogger(__name__)
 
-def safe_decrypt(encrypted_value):
-    if not encrypted_value:
-        return None
-    try:
-        if isinstance(encrypted_value, bytes):
-            encrypted_value = encrypted_value.decode("utf-8")
-        return decrypt_data(encrypted_value)
-    except Exception as e:
-        logger.error(f"Decryption failed: {e}")
-        return None
-
 async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     try:
-        user = get_user_data(user_id)
+        user = await get_user_data(user_id)  # Await if async
+
         if not user or "exchange" not in user:
             await update.message.reply_text("🚫 You're not registered. Use /register first.")
             return
@@ -49,7 +39,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         logger.info(f"Fetching balance for user: {user_id} on {exchange}")
 
-        balances = get_balance(user_id=user_id, source=exchange)
+        balances = await get_balance(api_key=api_key, secret=secret, source=exchange)  # Await and pass keys
 
         if not balances:
             await update.message.reply_text("⚠️ Could not retrieve balance.")
