@@ -12,7 +12,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     try:
-        user = await get_user_data(user_id)  # Await if async
+        user = await get_user_data(user_id)  # await if async
 
         if not user or "exchange" not in user:
             await update.message.reply_text("🚫 You're not registered. Use /register first.")
@@ -30,18 +30,17 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Unsupported exchange stored in your profile.")
             return
 
-        luno_api_key = safe_decrypt(luno_api_key_encrypted)
-        binance_api_key= safe_decrypt(binance_api_key_encrypted)
-        luno_api_secret = safe_decrypt(luno_api_secret_encrypted)
-        binance_api_secret = safe_decrypt(binance_api_secret_encrypted)
-        
+        # Decrypt keys only for the chosen exchange
+        api_key = decrypt_data(api_key_encrypted) if api_key_encrypted else None
+        secret = decrypt_data(secret_encrypted) if secret_encrypted else None
+
         if not api_key or not secret:
             await update.message.reply_text("⚠️ Your API credentials seem invalid or corrupted. Please /register again.")
             return
 
         logger.info(f"Fetching balance for user: {user_id} on {exchange}")
 
-        balances = await get_balance(api_key=api_key, secret=secret, source=exchange)  # Await and pass keys
+        balances = await get_balance(api_key=api_key, secret=secret, source=exchange)
 
         if not balances:
             await update.message.reply_text("⚠️ Could not retrieve balance.")
@@ -54,6 +53,6 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
 
-    except Exception as e:
+    except Exception:
         logger.exception("balance error")
         await update.message.reply_text("❌ An error occurred while fetching your balance.")
