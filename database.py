@@ -12,9 +12,9 @@ def initialize_firebase():
     """Initialize Firebase app directly from environment variable containing JSON credentials."""
     try:
         # Retrieve the Firebase credentials (already JSON, not encoded)
-        creds_json = os.getenv("FIREBASE_CREDENTIALS")
+        creds_json = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
         if not creds_json:
-            raise ValueError("FIREBASE_CREDENTIALS environment variable is not set.")
+            raise ValueError("FIREBASE_CREDENTIALS_ENCODED")
 
         creds_dict = json.loads(creds_json)
 
