@@ -1,3 +1,6 @@
+from telegram import Update
+from telegram.ext import ContextTypes
+
 async def trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     user_data = get_user_data(user_id)
