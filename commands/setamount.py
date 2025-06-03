@@ -1,10 +1,9 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-
-user_amounts = {}
+from firebase_admin import db
 
 async def setamount_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user_id = str(update.effective_user.id)
     args = context.args
 
     if not args:
@@ -19,5 +18,7 @@ async def setamount_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Please enter a valid positive number for amount.")
         return
 
-    user_amounts[user_id] = amount
-    await update.message.reply_text(f"Trade amount set to: {amount}")
+    # Save amount to Firebase
+    db.reference(f"/users/{user_id}/settings").update({"amount": amount})
+
+    await update.message.reply_text(f"✅ Trade amount saved to cloud: {amount}")
