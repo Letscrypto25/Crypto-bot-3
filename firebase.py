@@ -1,13 +1,17 @@
 import base64
 import json
+import json
 import firebase_admin
 from firebase_admin import credentials, db
 import os
 
-# Load Firebase credentials from encoded environment variable
-firebase_creds = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
-decoded_creds = base64.b64decode(firebase_creds).decode("utf-8")
-creds_dict = json.loads(decoded_creds)
+# Load Firebase credentials directly from environment variable
+firebase_creds = os.getenv("FIREBASE_CREDENTIALS_ENCODED")  # This is no longer encoded, it's the raw JSON
+
+if not firebase_creds:
+    raise Exception("FIREBASE_CREDENTIALS_ENCODED is not set!")
+
+creds_dict = json.loads(firebase_creds)
 
 # Initialize Firebase app
 if not firebase_admin._apps:
