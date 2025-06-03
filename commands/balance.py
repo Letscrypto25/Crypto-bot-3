@@ -12,8 +12,8 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     try:
-        # If get_user_data is sync, remove await here
-        user = await get_user_data(user_id)
+        # Call sync function without await
+        user = get_user_data(user_id)
 
         if not user or "exchange" not in user:
             await update.message.reply_text("🚫 You're not registered. Use /register first.")
