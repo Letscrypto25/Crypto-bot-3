@@ -1,6 +1,5 @@
 import logging
 import requests
-import time
 from binance.client import Client as BinanceClient
 
 logger = logging.getLogger(__name__)
@@ -68,8 +67,8 @@ def fetch_price_in_zar(asset_symbol):
         res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}")
         if res.status_code == 200:
             return float(res.json()["price"])
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"Binance price fetch failed for {symbol}: {e}")
 
     try:
         # Fallback to Coingecko
@@ -89,7 +88,7 @@ def fetch_price_in_zar(asset_symbol):
         res = requests.get(COINGECKO_API.format(coin_id))
         if res.status_code == 200:
             return res.json()[coin_id]["zar"]
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"Coingecko price fetch failed for {asset_symbol}: {e}")
 
     return 0
