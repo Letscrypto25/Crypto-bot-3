@@ -1,9 +1,9 @@
 from telegram import Update
-from telegram.ext import CallbackContext
+from telegram.ext import ContextTypes  # Use ContextTypes instead of CallbackContext in v20+
 from utils.firebase import migrate_keys
 from firebase_admin import db
 
-def autobot_config_command(update: Update, context: CallbackContext):
+async def autobot_config_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     args = context.args
 
@@ -11,7 +11,7 @@ def autobot_config_command(update: Update, context: CallbackContext):
     migrate_keys(user_id)
 
     if len(args) < 2:
-        update.message.reply_text("Usage: /autobot_config <key> <value>")
+        await update.message.reply_text("Usage: /autobot_config <key> <value>")
         return
 
     key = args[0].lower()
@@ -22,10 +22,10 @@ def autobot_config_command(update: Update, context: CallbackContext):
         config_ref = db.reference(f"/users/{user_id}/autobot_config")
         config_ref.update({key: value})
 
-        update.message.reply_text(
+        await update.message.reply_text(
             f"✅ Autobot config saved to cloud:\n`{key}` = `{value}`",
             parse_mode="Markdown"
         )
     except Exception as e:
-        update.message.reply_text("⚠️ Failed to update config. Please try again.")
+        await update.message.reply_text("⚠️ Failed to update config. Please try again.")
         raise e
