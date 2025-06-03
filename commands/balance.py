@@ -12,13 +12,14 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     try:
-        user = await get_user_data(user_id)  # await if async
+        # If get_user_data is sync, remove await here
+        user = await get_user_data(user_id)
 
         if not user or "exchange" not in user:
             await update.message.reply_text("🚫 You're not registered. Use /register first.")
             return
 
-        exchange = user["exchange"]
+        exchange = user["exchange"].lower()
 
         if exchange == "luno":
             api_key_encrypted = user.get("luno_api_key")
@@ -30,7 +31,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Unsupported exchange stored in your profile.")
             return
 
-        # Decrypt keys only for the chosen exchange
+        # Decrypt only if keys exist
         api_key = decrypt_data(api_key_encrypted) if api_key_encrypted else None
         secret = decrypt_data(secret_encrypted) if secret_encrypted else None
 
@@ -38,7 +39,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Your API credentials seem invalid or corrupted. Please /register again.")
             return
 
-        logger.info(f"Fetching balance for user: {user_id} on {exchange}")
+        logger.info(f"Fetching balance for user {user_id} on {exchange}")
 
         balances = await get_balance(api_key=api_key, secret=secret, source=exchange)
 
@@ -48,11 +49,17 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         msg = "*💰 Your Balance:*\n"
         for coin, amount in balances.items():
-            if float(amount) > 0:
-                msg += f"• `{coin}`: `{amount}`\n"
+            try:
+                if float(amount) > 0:
+                    msg += f"• `{coin}`: `{amount}`\n"
+            except (ValueError, TypeError):
+                continue  # Skip if amount can't be parsed to float
+
+        if msg == "*💰 Your Balance:*\n":
+            msg += "_No funds detected in your account._"
 
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
 
     except Exception:
-        logger.exception("balance error")
+        logger.exception("Error in balance_command")
         await update.message.reply_text("❌ An error occurred while fetching your balance.")
