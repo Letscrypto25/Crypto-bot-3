@@ -30,9 +30,11 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Unsupported exchange stored in your profile.")
             return
 
-        api_key = safe_decrypt(api_key_encrypted)
-        secret = safe_decrypt(secret_encrypted)
-
+        luno_api_key = safe_decrypt(luno_api_key_encrypted)
+        binance_api_key= safe_decrypt(binance_api_key_encrypted)
+        luno_api_secret = safe_decrypt(luno_api_secret_encrypted)
+        binance_api_secret = safe_decrypt(binance_api_secret_encrypted)
+        
         if not api_key or not secret:
             await update.message.reply_text("⚠️ Your API credentials seem invalid or corrupted. Please /register again.")
             return
