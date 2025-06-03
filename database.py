@@ -14,7 +14,7 @@ def initialize_firebase():
         # Retrieve the Firebase credentials (already JSON, not encoded)
         creds_json = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
         if not creds_json:
-            raise ValueError("FIREBASE_CREDENTIALS_ENCODED")
+            raise ValueError("FIREBASE_CREDENTIALS_ENCODED is not set.")
 
         creds_dict = json.loads(creds_json)
 
@@ -28,12 +28,9 @@ def initialize_firebase():
     except Exception as e:
         logger.error(f"Error initializing Firebase: {e}")
         raise
-        
-            logger.info("Firebase app initialized.")
-    except Exception as e:
-        logger.error(f"Firebase initialization failed: {e}")
-        raise
-        initialize_firebase()
+
+# Initialize Firebase at import
+initialize_firebase()
 
 # === Firebase Database Reference ===
 firebase_ref = db.reference("users")
