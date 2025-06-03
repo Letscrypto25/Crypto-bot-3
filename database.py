@@ -1,5 +1,5 @@
 import os
-import base64
+import json
 import firebase_admin
 from firebase_admin import credentials, db
 import logging
@@ -8,29 +8,32 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === Firebase Initialization with base64 decoding ===
 def initialize_firebase():
-    """Initialize Firebase app with decoded credentials if not already initialized."""
+    """Initialize Firebase app directly from environment variable containing JSON credentials."""
     try:
-        if not os.path.exists("firebase_credentials.json"):
-            with open("firebase_encoded.txt", "r") as f:
-                encoded = f.read().strip()
-            decoded = base64.b64decode(encoded).decode("utf-8")
-            with open("firebase_credentials.json", "w") as f:
-                f.write(decoded)
-            logger.info("Decoded and saved Firebase credentials.")
+        # Retrieve the Firebase credentials (already JSON, not encoded)
+        creds_json = os.getenv("FIREBASE_CREDENTIALS")
+        if not creds_json:
+            raise ValueError("FIREBASE_CREDENTIALS environment variable is not set.")
 
+        creds_dict = json.loads(creds_json)
+
+        # Initialize the Firebase app
         if not firebase_admin._apps:
-            cred = credentials.Certificate("firebase_credentials.json")
+            cred = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(cred, {
-                'databaseURL': 'https://crypto-bot-3-default-rtdb.firebaseio.com/'  # <-- Update if needed
+                'databaseURL': os.getenv("FIREBASE_DATABASE_URL")
             })
+            logger.info("Firebase app initialized successfully.")
+    except Exception as e:
+        logger.error(f"Error initializing Firebase: {e}")
+        raise
+        
             logger.info("Firebase app initialized.")
     except Exception as e:
         logger.error(f"Firebase initialization failed: {e}")
         raise
-
-initialize_firebase()
+        initialize_firebase()
 
 # === Firebase Database Reference ===
 firebase_ref = db.reference("users")
