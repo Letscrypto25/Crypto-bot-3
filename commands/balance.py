@@ -1,4 +1,4 @@
-import logging
+from logger_utils import get_logger
 from telegram import Update
 from telegram.ext import ContextTypes
 from database import firebase_ref
