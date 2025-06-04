@@ -3,7 +3,6 @@ import asyncio
 import json
 import os
 import logging
-#from handlers import login
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler
@@ -20,7 +19,6 @@ from handlers.login import login_handler
 from commands.start import start_command
 from commands.help import help_command
 from commands.trade import trade_command
-#from commands.start_autobot import start_autobot_command
 from commands.leaderboard import leaderboard_command
 from commands.setbase import setbase_command
 from commands.setplatform import setplatform_command
@@ -28,11 +26,13 @@ from commands.setstrategy import setstrategy_command
 from commands.setamount import setamount_command
 from commands.showconfig import showconfig_command
 from commands.balance import balance_command
-from commands.register import register_command# ✅ FIXED: direct function import
-
-from utils import send_alert, format_trade_message
-from commands.autobot import autobot_command  # ✅ import the function
+from commands.register import register_command
+from commands.autobot import autobot_command
 from database import get_user, get_autobot_status, create_user
+from utils import send_alert, format_trade_message
+
+# === New Import for price feed ===
+from price_feed import get_price
 
 # === Load Environment Variables ===
 load_dotenv()
@@ -70,9 +70,31 @@ telegram_app.add_handler(CommandHandler("setstrategy", setstrategy_command))
 telegram_app.add_handler(CommandHandler("setamount", setamount_command))
 telegram_app.add_handler(CommandHandler("showconfig", showconfig_command))
 telegram_app.add_handler(CommandHandler("register", register_command))
-#telegram_app.add_handler(CommandHandler("login", login_command))
-telegram_app.add_handler(CommandHandler("balance", balance_command))  # ✅ fixed
-telegram_app.add_handler(CommandHandler("autobot", autobot_command))  # ✅
+telegram_app.add_handler(CommandHandler("balance", balance_command))
+telegram_app.add_handler(CommandHandler("autobot", autobot_command))
+
+# === New Price Command Handler ===
+async def price_command(update: Update, context):
+    user_id = str(update.effective_user.id)
+    args = context.args
+    source = args[0].lower() if len(args) >= 1 else "binance"
+
+    if source == "binance":
+        symbol = args[1] if len(args) > 1 else "BTCUSDT"
+        price = get_price(user_id, source="binance", symbol=symbol)
+    elif source == "luno":
+        pair = args[1] if len(args) > 1 else "XBTZAR"
+        price = get_price(user_id, source="luno", pair=pair)
+    else:
+        await update.message.reply_text("Unknown exchange. Use 'binance' or 'luno'.")
+        return
+
+    if price is not None:
+        await update.message.reply_text(f"Current {source} price: {price}")
+    else:
+        await update.message.reply_text("Error fetching price.")
+
+telegram_app.add_handler(CommandHandler("price", price_command))
 
 # === Firebase Logging ===
 def log_event(user_id, event_type, message_text, status="ok", error=None):
@@ -157,7 +179,7 @@ async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
 
-    # Set all commands for Telegram UI
+    # Set commands for Telegram UI
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
         ("help", "Show help info"),
@@ -172,6 +194,7 @@ async def start_bot():
         ("register", "Register a new account"),
         ("login", "Log into your account"),
         ("balance", "Check your crypto balance"),
+        ("price", "Check crypto prices"),  # added
     ])
 
     await telegram_app.bot.set_webhook(
@@ -179,7 +202,7 @@ async def start_bot():
     )
     logger.info("Webhook set successfully.")
 
-    # Start your strategy loop as a background task on startup
+    # Start your strategy loop as a background task
     asyncio.create_task(strategy_loop())
 
 @app.on_event("shutdown")
