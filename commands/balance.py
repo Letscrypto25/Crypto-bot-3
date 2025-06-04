@@ -5,7 +5,7 @@ from database import firebase_ref
 from encryption import decrypt_data
 from exchanges import get_balance  # Assuming you have this function to fetch balance
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
