@@ -12,7 +12,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Validate input arguments
     if len(args) != 3:
-        await update.message.reply_text("Usage: /register <exchange> <api_key> <secret>")
+        await update.message.reply_text("Usage: /register <Luno or  Binance> <api_key> <secret>")
         return
 
     exchange, api_key, secret = args
@@ -37,8 +37,10 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Update Firebase
         firebase_ref.child(user_id).update(updates)
 
-        await update.message.reply_text("✅ Successfully registered your exchange details!")
-        logger.info(f"User {user_id} registered with {exchange}")
+        await update.message.reply_text(
+            f"✅ Successfully registered {exchange.capitalize()} exchange details!"
+        )
+        logger.info(f"User {user_id} registered with {exchange.capitalize()}")
 
     except Exception as e:
         logger.exception("Error during registration")
