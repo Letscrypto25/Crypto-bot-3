@@ -10,7 +10,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     args = context.args
 
-    # Validate the input arguments
+    # Validate input arguments
     if len(args) != 3:
         await update.message.reply_text("Usage: /register <exchange> <api_key> <secret>")
         return
@@ -23,26 +23,23 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # Encrypt the sensitive API credentials
+        # Encrypt API credentials
         encrypted_api_key = encrypt_data(api_key)
         encrypted_secret = encrypt_data(secret)
 
-        # Prepare the data to store in Firebase
+        # Prepare user data
         updates = {
-            "exchange": exchange
+            "exchange": exchange,
+            f"{exchange}_api_key": encrypted_api_key,
+            f"{exchange}_api_secret": encrypted_secret
         }
-        if exchange == "luno":
-            updates["luno_api_key"] = encrypted_api_key
-            updates["luno_api_secret"] = encrypted_secret
-        else:  # binance
-            updates["binance_api_key"] = encrypted_api_key
-            updates["binance_api_secret"] = encrypted_secret
 
-        # Save the data in the Firebase database
+        # Update Firebase
         firebase_ref.child(user_id).update(updates)
 
-        await update.message.reply_text("✅ Registered successfully with your exchange details.")
+        await update.message.reply_text("✅ Successfully registered your exchange details!")
+        logger.info(f"User {user_id} registered with {exchange}")
 
     except Exception as e:
         logger.exception("Error during registration")
-        await update.message.reply_text("❌ An error occurred during registration.")
+        await update.message.reply_text(f"❌ An error occurred during registration: {e}")
