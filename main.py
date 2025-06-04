@@ -2,7 +2,7 @@ import base64
 import asyncio
 import json
 import os
-from command.logger_utils import get_logger
+from logger_utils import get_logger
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler
