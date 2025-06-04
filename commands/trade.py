@@ -5,7 +5,7 @@ from telegram.ext import ContextTypes
 from database import get_user_data, save_trade
 from utils.price_utils import get_price  # Use the new get_price from price_utils.py
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 async def trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
