@@ -3,8 +3,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 from database import get_user_data, save_trade
-from price_feed import get_price  # Example; adjust import to your project
-# from trades import execute_trade  # If you have actual trade logic!
+from utils.price_utils import get_price  # Use the new get_price from price_utils.py
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +34,21 @@ async def trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Amount must be a number.")
             return
 
-        # Get price
-        exchange = user_data.get("exchange")
-        price = await get_price(user_id=user_id, source=exchange, symbol=symbol)
-        if not price:
+        # Prepare API credentials
+        binance_api_key = user_data.get("binance_api_key")
+        binance_api_secret = user_data.get("binance_api_secret")
+        luno_api_key = user_data.get("luno_api_key")
+        luno_api_secret = user_data.get("luno_api_secret")
+
+        # Fetch price using get_price (with API keys)
+        price = get_price(
+            symbol,
+            binance_api_key=binance_api_key,
+            binance_api_secret=binance_api_secret,
+            luno_api_key=luno_api_key,
+            luno_api_secret=luno_api_secret
+        )
+        if price == 0.0:
             await update.message.reply_text("❌ Failed to fetch price.")
             return
 
