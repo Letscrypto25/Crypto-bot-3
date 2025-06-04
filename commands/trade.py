@@ -1,4 +1,4 @@
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
