@@ -4,21 +4,17 @@ import firebase_admin
 from firebase_admin import credentials, db
 import logging
 
-# Configure logging globally
+# === Logging Setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def initialize_firebase():
-    """Initialize Firebase app directly from environment variable containing JSON credentials."""
+    """Initialize Firebase app using JSON credentials from environment variable."""
     try:
-        # Retrieve the Firebase credentials (already JSON, not encoded)
         creds_json = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
         if not creds_json:
             raise ValueError("FIREBASE_CREDENTIALS_ENCODED is not set.")
-
         creds_dict = json.loads(creds_json)
-
-        # Initialize the Firebase app
         if not firebase_admin._apps:
             cred = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(cred, {
@@ -29,16 +25,15 @@ def initialize_firebase():
         logger.error(f"Error initializing Firebase: {e}")
         raise
 
-# Initialize Firebase at import
+# Initialize Firebase
 initialize_firebase()
 
-# === Firebase Database Reference ===
+# === Database References ===
 firebase_ref = db.reference("users")
 
 # === User Management ===
-
-def get_user(user_id):
-    """Fetch user data by user_id."""
+def get_user(user_id: str):
+    """Fetch a user’s data."""
     try:
         return db.reference(f'users/{user_id}').get()
     except Exception as e:
@@ -46,17 +41,15 @@ def get_user(user_id):
         return None
 
 def get_all_users():
-    """Fetch all users data."""
+    """Fetch all users."""
     try:
         return db.reference('users').get()
     except Exception as e:
         logger.error(f"Error getting all users: {e}")
         return None
 
-def create_user(user_id, default_data=None):
-    """
-    Create a new user with default data if not specified.
-    """
+def create_user(user_id: str, default_data: dict = None):
+    """Create a user with default data."""
     if default_data is None:
         default_data = {
             "balance": 0,
@@ -71,33 +64,30 @@ def create_user(user_id, default_data=None):
             "profit": 0
         }
     try:
-        ref = db.reference(f'users/{user_id}')
-        ref.set(default_data)
+        db.reference(f'users/{user_id}').set(default_data)
         logger.info(f"User {user_id} created with default data.")
     except Exception as e:
         logger.error(f"Error creating user {user_id}: {e}")
 
-def update_user_data(user_id, data):
-    """Update user data with a dictionary of fields."""
+def update_user_data(user_id: str, data: dict):
+    """Update user data."""
     try:
         db.reference(f'users/{user_id}').update(data)
         logger.info(f"User {user_id} data updated.")
     except Exception as e:
         logger.error(f"Error updating user {user_id} data: {e}")
 
-def get_user_data(user_id):
-    """Get all data for a user."""
+def get_user_data(user_id: str):
+    """Get user data."""
     try:
         return db.reference(f'users/{user_id}').get()
     except Exception as e:
-        logger.error(f"Error fetching data for user {user_id}: {e}")
+        logger.error(f"Error getting data for user {user_id}: {e}")
         return None
 
-# === Fetch users with all needed trading info for autobot ===
 def get_users_with_api_keys_and_strategy():
     """
-    Fetch users who have all required API keys and strategy info along with config parameters.
-    Returns list of dicts with user info.
+    Fetch users who have API keys and trading strategy info.
     """
     try:
         users_data = get_all_users()
@@ -135,17 +125,16 @@ def get_users_with_api_keys_and_strategy():
         return []
 
 # === Balance ===
-
-def set_balance(user_id, amount):
-    """Set user balance to a specific amount."""
+def set_balance(user_id: str, amount: float):
+    """Set balance for a user."""
     try:
         db.reference(f'users/{user_id}/balance').set(amount)
         logger.info(f"Balance set to {amount} for user {user_id}.")
     except Exception as e:
         logger.error(f"Error setting balance for user {user_id}: {e}")
 
-def get_balance(user_id):
-    """Get user balance, returns 0 if not set."""
+def get_balance(user_id: str) -> float:
+    """Get user balance, default 0."""
     try:
         return db.reference(f'users/{user_id}/balance').get() or 0
     except Exception as e:
@@ -153,11 +142,8 @@ def get_balance(user_id):
         return 0
 
 # === Profit Tracking ===
-
-def add_profit(user_id, profit):
-    """
-    Add profit to user profit atomically using Firebase transaction to avoid race conditions.
-    """
+def add_profit(user_id: str, profit: float):
+    """Add profit to user’s record using transaction for atomic update."""
     try:
         profit_ref = db.reference(f'users/{user_id}/profit')
 
@@ -169,35 +155,33 @@ def add_profit(user_id, profit):
     except Exception as e:
         logger.error(f"Error adding profit for user {user_id}: {e}")
 
-def get_profit(user_id):
-    """Get total profit for user, defaults to 0."""
+def get_profit(user_id: str) -> float:
+    """Get total profit, default 0."""
     try:
         return db.reference(f'users/{user_id}/profit').get() or 0
     except Exception as e:
         logger.error(f"Error getting profit for user {user_id}: {e}")
         return 0
 
-# === Trade Data ===
-
-def save_trade(user_id, trade_data):
-    """Save a new trade record under trades/{user_id}."""
+# === Trades ===
+def save_trade(user_id: str, trade_data: dict):
+    """Save a trade record."""
     try:
         db.reference(f'trades/{user_id}').push(trade_data)
         logger.info(f"Trade saved for user {user_id}.")
     except Exception as e:
         logger.error(f"Error saving trade for user {user_id}: {e}")
 
-def get_user_trades(user_id):
-    """Get all trades for a user, returns empty dict if none."""
+def get_user_trades(user_id: str):
+    """Get all trades for a user."""
     try:
         return db.reference(f'trades/{user_id}').get() or {}
     except Exception as e:
-        logger.error(f"Error fetching trades for user {user_id}: {e}")
+        logger.error(f"Error getting trades for user {user_id}: {e}")
         return {}
 
 # === Leaderboard ===
-
-def update_leaderboard(user_id, profit):
+def update_leaderboard(user_id: str, profit: float):
     """Update leaderboard entry for a user."""
     try:
         db.reference(f'leaderboard/{user_id}').set({
@@ -209,53 +193,58 @@ def update_leaderboard(user_id, profit):
         logger.error(f"Error updating leaderboard for user {user_id}: {e}")
 
 def get_leaderboard():
-    """Fetch leaderboard data or empty dict if none."""
+    """Get leaderboard data."""
     try:
         return db.reference('leaderboard').get() or {}
     except Exception as e:
         logger.error(f"Error getting leaderboard: {e}")
         return {}
 
-# === Autobot Config ===
-
-def set_autobot_status(user_id, status: bool):
+# === Autobot Settings ===
+def set_autobot_status(user_id: str, status: bool):
+    """Set autobot status."""
     try:
         db.reference(f'users/{user_id}/autobot/status').set(status)
         logger.info(f"Set autobot status {status} for user {user_id}.")
     except Exception as e:
         logger.error(f"Error setting autobot status for user {user_id}: {e}")
 
-def get_autobot_status(user_id):
+def get_autobot_status(user_id: str) -> bool:
+    """Get autobot status."""
     try:
         return db.reference(f'users/{user_id}/autobot/status').get() or False
     except Exception as e:
         logger.error(f"Error getting autobot status for user {user_id}: {e}")
         return False
 
-def set_autobot_platform(user_id, platform: str):
+def set_autobot_platform(user_id: str, platform: str):
+    """Set autobot trading platform."""
     try:
         db.reference(f'users/{user_id}/autobot/platform').set(platform)
         logger.info(f"Set autobot platform {platform} for user {user_id}.")
     except Exception as e:
         logger.error(f"Error setting autobot platform for user {user_id}: {e}")
 
-def set_autobot_strategy(user_id, strategy: str):
+def set_autobot_strategy(user_id: str, strategy: str):
+    """Set autobot strategy."""
     try:
         db.reference(f'users/{user_id}/autobot/strategy').set(strategy)
         logger.info(f"Set autobot strategy {strategy} for user {user_id}.")
     except Exception as e:
         logger.error(f"Error setting autobot strategy for user {user_id}: {e}")
 
-def set_autobot_base(user_id, base: str):
+def set_autobot_base(user_id: str, base: str):
+    """Set autobot trading base currency."""
     try:
         db.reference(f'users/{user_id}/autobot/base').set(base)
         logger.info(f"Set autobot base {base} for user {user_id}.")
     except Exception as e:
         logger.error(f"Error setting autobot base for user {user_id}: {e}")
 
-def set_autobot_amount(user_id, amount: float):
+def set_autobot_amount(user_id: str, amount: float):
+    """Set autobot trade amount."""
     try:
         db.reference(f'users/{user_id}/autobot/amount').set(amount)
-        logger.info(f"Set autobot amount {amount} for user {user_id}")
+        logger.info(f"Set autobot amount {amount} for user {user_id}.")
     except Exception as e:
         logger.error(f"Error setting autobot amount for user {user_id}: {e}")
