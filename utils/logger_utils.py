@@ -7,7 +7,7 @@ from logging.handlers import RotatingFileHandler
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
-def get_logger(name: str, level: int = logging.INFO) -> logging.logger:
+def get_logger(name: str, level: int = logging.INFO) -> logging.logging:
     """Creates and returns a logger with console and rotating file handlers."""
     logger = logging.getLogger(name)
     logger.setLevel(level)
