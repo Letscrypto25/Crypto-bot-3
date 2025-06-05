@@ -3,7 +3,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from database import firebase_ref
 from encryption import decrypt_data
-from exchanges import get_balance  # Assuming you have this function to fetch balance
+from exchanges import get_balance
 
 logger = get_logger(__name__)
 
@@ -17,32 +17,63 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ You're not registered. Use /register first.")
             return
 
-        exchange = user_data.get("exchange")
+        exchange = user_data.get("exchange").lower()
+        if not exchange:
+            await update.message.reply_text("❌ No exchange specified.")
+            return
 
-        # Decrypt the API keys
-        if exchange.lower() == "luno":
-            api_key_encrypted = user_data.get("luno_api_key")
-            secret_encrypted = user_data.get("luno_api_secret")
-        elif exchange.lower() == "binance":
-            api_key_encrypted = user_data.get("binance_api_key")
-            secret_encrypted = user_data.get("binance_api_secret")
+        # Prepare API keys specifically for the exchange
+        if exchange == "luno":
+            luno_api_key_encrypted = user_data.get("luno_api_key")
+            luno_api_secret_encrypted = user_data.get("luno_api_secret")
+            if not luno_api_key_encrypted:
+                await update.message.reply_text("❌ Missing luno_api_key.")
+                return
+            if not luno_api_secret_encrypted:
+                await update.message.reply_text("❌ Missing luno_api_secret.")
+                return
+
+            luno_api_key = decrypt_data(luno_api_key_encrypted)
+            luno_api_secret = decrypt_data(luno_api_secret_encrypted)
+
+            if not luno_api_key or not luno_api_secret:
+                await update.message.reply_text("❌ Luno API keys could not be decrypted.")
+                return
+
+            # Call get_balance with luno-specific keys
+            balances = await get_balance(
+                source="luno",
+                luno_api_key=luno_api_key,
+                luno_api_secret=luno_api_secret
+            )
+
+        elif exchange == "binance":
+            binance_api_key_encrypted = user_data.get("binance_api_key")
+            binance_api_secret_encrypted = user_data.get("binance_api_secret")
+            if not binance_api_key_encrypted:
+                await update.message.reply_text("❌ Missing binance_api_key.")
+                return
+            if not binance_api_secret_encrypted:
+                await update.message.reply_text("❌ Missing binance_api_secret.")
+                return
+
+            binance_api_key = decrypt_data(binance_api_key_encrypted)
+            binance_api_secret = decrypt_data(binance_api_secret_encrypted)
+
+            if not binance_api_key or not binance_api_secret:
+                await update.message.reply_text("❌ Binance API keys could not be decrypted.")
+                return
+
+            # Call get_balance with binance-specific keys
+            balances = await get_balance(
+                source="binance",
+                binance_api_key=binance_api_key,
+                binance_api_secret=binance_api_secret
+            )
+
         else:
-            await update.message.reply_text("❌ Unknown exchange specified.")
+            await update.message.reply_text(f"❌ Unsupported exchange: {exchange}")
             return
-
-        api_key = decrypt_data(api_key_encrypted) if api_key_encrypted else None
-        secret = decrypt_data(secret_encrypted) if secret_encrypted else None
-
-        if not api_key or not secret:
-            await update.message.reply_text("❌ API keys not found or incomplete for your exchange.")
-            return
-
-        # Fetch balance
-        balances = await get_balance(
-            source=exchange,
-            api_key=api_key,
-            secret=secret
-        )
 
         if not balances:
             await update.message.reply_text("❌ Could not fetch your balance.")
