@@ -2,7 +2,7 @@ import base64
 import asyncio
 import json
 import os
-from utils.logger_utils import get_logger
+import logging  # <-- ADDED
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler
@@ -48,8 +48,11 @@ if not firebase_admin._apps:
     initialize_app(cred, {"databaseURL": firebase_url})
 
 # === Logging ===
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("crypto-bot")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("crypto-bot-3")
 
 # === FastAPI App ===
 app = FastAPI()
@@ -179,7 +182,6 @@ async def start_bot():
     logger.info("Starting Telegram bot...")
     await telegram_app.initialize()
 
-    # Set commands for Telegram UI
     await telegram_app.bot.set_my_commands([
         ("start", "Start the bot"),
         ("help", "Show help info"),
@@ -194,7 +196,7 @@ async def start_bot():
         ("register", "Register a new account"),
         ("login", "Log into your account"),
         ("balance", "Check your crypto balance"),
-        ("price", "Check crypto prices"),  # added
+        ("price", "Check crypto prices"),
     ])
 
     await telegram_app.bot.set_webhook(
@@ -202,7 +204,6 @@ async def start_bot():
     )
     logger.info("Webhook set successfully.")
 
-    # Start your strategy loop as a background task
     asyncio.create_task(strategy_loop())
 
 @app.on_event("shutdown")
