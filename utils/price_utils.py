@@ -1,7 +1,7 @@
 # utils/price_utils.py
 
 import requests
-from utils.logger import get_logger
+from utils.logger_utils import get_logger
 from requests.auth import HTTPBasicAuth
 
 logger = get_logger("price_utils")
