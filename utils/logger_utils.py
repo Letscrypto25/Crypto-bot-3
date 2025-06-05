@@ -1,6 +1,5 @@
 # utils/logger.py
 
-from logger_utils import get_logger
 import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
