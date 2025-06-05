@@ -4,7 +4,7 @@ import os
 import logging  # <-- add this import!
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-
+from utils.logger_utils import get_logger
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
