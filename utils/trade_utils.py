@@ -1,5 +1,5 @@
 # utils/trade_utils.py
-
+import logging 
 from utils.firebase_utils import get_user_data, update_user_data
 from utils.price_utils import get_current_price
 from utils.time_utils import format_timestamp, get_utc_now
