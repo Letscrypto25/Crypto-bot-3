@@ -1,7 +1,7 @@
 # utils/logger.py
 
 import os
-import logging  # <-- add this import!
+import logging
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
@@ -10,7 +10,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Creates and returns a logger with console and rotating file handlers."""
-    logger = logging.getLogger(name)  # <-- use logging.getLogger, not logger.getLogger
+    logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.propagate = False  # Prevent duplicate logs from propagating to root
 
@@ -24,7 +24,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
         # Rotating file handler
         date_str = datetime.now().strftime("%Y-%m-%d")
-        log_path = f"{LOG_DIR}/{name}_{date_str}.log"
+        log_path = os.path.join(LOG_DIR, f"{name}_{date_str}.log")
         file_handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=5)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
