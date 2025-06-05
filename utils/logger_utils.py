@@ -7,17 +7,17 @@ from logging.handlers import RotatingFileHandler
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
-def get_logger(name: str, level: int = logging.INFO) -> logging.logging:
+def get_logger(name: str, level: int = logger.INFO) -> logger.logger:
     """Creates and returns a logger with console and rotating file handlers."""
-    logger = logging.getLogger(name)
+    logger = logger.getLogger(name)
     logger.setLevel(level)
     logger.propagate = False  # Prevent duplicate logs from propagating to root
 
     if not logger.handlers:
-        formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s')
+        formatter = logger.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s')
 
         # Console handler
-        console_handler = logging.StreamHandler()
+        console_handler = logger.StreamHandler()
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
