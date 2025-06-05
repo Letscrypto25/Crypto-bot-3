@@ -4,7 +4,7 @@ from telegram.ext import ContextTypes
 from database import firebase_ref
 from encryption import encrypt_data
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
