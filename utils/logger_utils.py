@@ -1,23 +1,24 @@
 # utils/logger.py
 
 import os
+import logging  # <-- add this import!
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
-def get_logger(name: str, level: int = logger.INFO) -> logger.logger:
+def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Creates and returns a logger with console and rotating file handlers."""
-    logger = logger.getLogger(name)
+    logger = logging.getLogger(name)  # <-- use logging.getLogger, not logger.getLogger
     logger.setLevel(level)
     logger.propagate = False  # Prevent duplicate logs from propagating to root
 
     if not logger.handlers:
-        formatter = logger.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s')
+        formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s')
 
         # Console handler
-        console_handler = logger.StreamHandler()
+        console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
