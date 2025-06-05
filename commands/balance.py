@@ -20,15 +20,22 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         exchange = user_data.get("exchange")
 
         # Decrypt the API keys
-        if exchange == "luno":
+        if exchange.lower() == "luno":
             api_key_encrypted = user_data.get("luno_api_key")
             secret_encrypted = user_data.get("luno_api_secret")
-        else:  # binance
+        elif exchange.lower() == "binance":
             api_key_encrypted = user_data.get("binance_api_key")
             secret_encrypted = user_data.get("binance_api_secret")
+        else:
+            await update.message.reply_text("❌ Unknown exchange specified.")
+            return
 
         api_key = decrypt_data(api_key_encrypted) if api_key_encrypted else None
         secret = decrypt_data(secret_encrypted) if secret_encrypted else None
+
+        if not api_key or not secret:
+            await update.message.reply_text("❌ API keys not found or incomplete for your exchange.")
+            return
 
         # Fetch balance
         balances = await get_balance(
