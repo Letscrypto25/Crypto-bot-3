@@ -12,6 +12,7 @@ from datetime import datetime
 import firebase_admin
 from urllib.parse import unquote
 from fastapi.security import HTTPBearer
+from utils.logging_utils import get_logger
 
 # Import your strategy loop
 from strategy_loop import strategy_loop
