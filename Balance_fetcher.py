@@ -3,11 +3,10 @@ import requests
 from binance.client import Client
 
 def get_binance_client(user):
-    # Use keys from user dict with your exact naming
-    
+    # Use keys from user dict
     binance_api_key = user["binance_api_key"]
-   binance_api_secret = user["binance_api_secret"]
-    return Client(binance_api_key, binance api_secret)
+    binance_api_secret = user["binance_api_secret"]
+    return Client(binance_api_key, binance_api_secret)
 
 def get_balance(id: str, source: str, user=None) -> dict:
     print(f"Fetching balance for user: {id} on {source}")
@@ -43,15 +42,3 @@ def get_balance(id: str, source: str, user=None) -> dict:
     except Exception as e:
         print(f"[Balance Fetch Error] {e}")
         return {}
-
-# Example usage:
-if __name__ == "__main__":
-    user_credentials = {
-        "luno_api_key": "your_luno_api_key",
-        "luno_api_secret": "your_luno_api_secret",
-        "binance_api_key": "your_binance_api_key",
-        "binance_api_secret": "your_binance_api_secret",
-    }
-
-    print("Luno Balances:", get_balance("user123", "luno", user_credentials))
-    print("Binance Balances:", get_balance("user123", "binance", user_credentials))
