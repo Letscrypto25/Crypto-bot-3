@@ -6,26 +6,22 @@ from cryptography.fernet import Fernet
 import os
 
 # === Fernet Setup ===
-SECRET_KEY = os.getenv("SECRET_KEY")  # Must be securely stored
+SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY environment variable is not set")
 fernet = Fernet(SECRET_KEY.encode())
 
 def decrypt_api_key(encrypted_key: str) -> str:
-    """Decrypt encrypted API keys stored in Firebase."""
     return fernet.decrypt(encrypted_key.encode()).decode()
 
 # === Binance ===
 def get_binance_client(user_id, user=None):
     if user is None:
         user = db.reference(f"/users/{user_id}").get()
-
     encrypted_key = user.get("binance_api_key") or user.get("api_key")
     encrypted_secret = user.get("binance_api_secret") or user.get("api_secret")
-
     if not encrypted_key or not encrypted_secret:
-        raise ValueError("Missing Binance API credentials for user.")
-
+        raise ValueError("Missing Binance API credentials.")
     api_key = decrypt_api_key(encrypted_key)
     api_secret = decrypt_api_key(encrypted_secret)
     return BinanceClient(api_key, api_secret)
@@ -45,13 +41,10 @@ def get_luno_auth_header(user_id=None, user=None):
         if not user_id:
             raise ValueError("Must provide user_id or user data")
         user = db.reference(f"/users/{user_id}").get()
-
     encrypted_key = user.get("api_key")
     encrypted_secret = user.get("secret")
-
     if not encrypted_key or not encrypted_secret:
         raise ValueError("Missing Luno API credentials.")
-
     key = decrypt_api_key(encrypted_key)
     secret = decrypt_api_key(encrypted_secret)
     auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
