@@ -4,12 +4,13 @@ from binance.client import Client
 
 def get_binance_client(user):
     # Use keys from user dict with your exact naming
-    api_key = user["binance_api_key"]
-    api_secret = user["binance_api_secret"]
-    return Client(api_key, api_secret)
+    
+    binance_api_key = user["binance_api_key"]
+   binance_api_secret = user["binance_api_secret"]
+    return Client(binance_api_key, binance api_secret)
 
-def get_balance(user_id: str, source: str, user=None) -> dict:
-    print(f"Fetching balance for user: {user_id} on {source}")
+def get_balance(id: str, source: str, user=None) -> dict:
+    print(f"Fetching balance for user: {id} on {source}")
     try:
         if source == "luno":
             key = user["luno_api_key"]
