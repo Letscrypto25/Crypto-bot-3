@@ -5,7 +5,8 @@ from binance.client import Client
 def get_binance_client(api_key, api_secret):
     return Client(api_key, api_secret)
 
-def get_balance(id: str, source: str, user=None) -> dict:
+async def get_balance(source: str, user=None, id: str = None) -> dict:
+    # id param accepted here!
     print(f"Fetching balance for user: {id} on {source}")
     try:
         if source == "luno":
@@ -39,5 +40,5 @@ def get_balance(id: str, source: str, user=None) -> dict:
             raise ValueError(f"Unknown exchange source: {source}")
 
     except Exception as e:
-        print(f"[Balance Fetch Error] {e}")
+        print(f"[Balance Fetch Error for user {id}] {e}")
         return {}
