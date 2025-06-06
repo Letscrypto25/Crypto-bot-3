@@ -2,11 +2,8 @@ import base64
 import requests
 from binance.client import Client
 
-def get_binance_client(user):
-    # Use keys from user dict
-    binance_api_key = user["binance_api_key"]
-    binance_api_secret = user["binance_api_secret"]
-    return Client(binance_api_key, binance_api_secret)
+def get_binance_client(api_key, api_secret):
+    return Client(api_key, api_secret)
 
 def get_balance(id: str, source: str, user=None) -> dict:
     print(f"Fetching balance for user: {id} on {source}")
@@ -27,7 +24,9 @@ def get_balance(id: str, source: str, user=None) -> dict:
             }
 
         elif source == "binance":
-            client = get_binance_client(user)
+            binance_api_key = user["binance_api_key"]
+            binance_api_secret = user["binance_api_secret"]
+            client = get_binance_client(binance_api_key, binance_api_secret)
             raw_balances = client.get_account()["balances"]
             print("Binance balances:", raw_balances)
             return {
