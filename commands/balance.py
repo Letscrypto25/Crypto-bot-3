@@ -3,7 +3,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from database import firebase_ref
 from encryption import decrypt_data
-from exchanges import get_balance
+from exchanges import get_balance  # This is a normal function, not async
 
 logger = get_logger(__name__)
 
@@ -20,11 +20,11 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check exchange and get encrypted keys
         exchange = user_data.get("exchange", "").lower()
         if exchange == "luno":
-            api_key_encrypted = user_data.get("luno_api_key")
-            secret_encrypted = user_data.get("luno_api_secret")
+            api_key_encrypted = user_data.get("luno_api_key") or user_data.get("api_key")
+            secret_encrypted = user_data.get("luno_api_secret") or user_data.get("api_secret")
         elif exchange == "binance":
-            api_key_encrypted = user_data.get("binance_api_key")
-            secret_encrypted = user_data.get("binance_api_secret")
+            api_key_encrypted = user_data.get("binance_api_key") or user_data.get("api_key")
+            secret_encrypted = user_data.get("binance_api_secret") or user_data.get("api_secret")
         else:
             await update.message.reply_text("❌ Unknown exchange specified in your data.")
             return
@@ -42,23 +42,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # Fetch balance using explicit keys for the exchange
-        if exchange == "luno":
-            balances = await get_balance(
-                source=exchange,
-                user_id=user_id,
-                luno_api_key=api_key,
-                luno_api_secret=secret
-            )
-        elif exchange == "binance":
-            balances = await get_balance(
-                source=exchange,
-                user_id=user_id,
-                binance_api_key=api_key,
-                binance_api_secret=secret
-            )
-        else:
-            await update.message.reply_text("❌ Unknown exchange.")
-            return
+        balances = get_balance(user_id=user_id, source=exchange, user=user_data)
 
         if not balances:
             await update.message.reply_text("❌ Could not fetch your balance.")
