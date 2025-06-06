@@ -2,15 +2,17 @@ import base64
 import requests
 from binance.client import Client
 
-async def get_balance(source: str, user_id: str = None, user=None,
-                       luno_api_key=None, luno_api_secret=None,
-                       binance_api_key=None, binance_api_secret=None) -> dict:
-    print(f"Fetching balance for user: {user_id} on {source}")
+def get_binance_client(user):
+    binance_api_key = user["binance_api_key"]
+    binance_api_secret = user["binance_api_secret"]
+    return Client(binance_api_key, binance_api_secret)
 
+def get_balance(user_id: str, source: str, user: dict) -> dict:
+    print(f"Fetching balance for user_id: {user_id} on {source}")
     try:
         if source == "luno":
-            key = luno_api_key
-            secret = luno_api_secret
+            key = user["luno_api_key"]
+            secret = user["luno_api_secret"]
             auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
             headers = {"Authorization": f"Basic {auth}"}
             r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
@@ -24,7 +26,7 @@ async def get_balance(source: str, user_id: str = None, user=None,
             }
 
         elif source == "binance":
-            client = Client(binance_api_key, binance_api_secret)
+            client = get_binance_client(user)
             raw_balances = client.get_account()["balances"]
             print("Binance balances:", raw_balances)
             return {
@@ -37,5 +39,5 @@ async def get_balance(source: str, user_id: str = None, user=None,
             raise ValueError(f"Unknown exchange source: {source}")
 
     except Exception as e:
-        print(f"[Balance Fetch Error for user {user_id}] {e}")
+        print(f"[Balance Fetch Error] {e}")
         return {}
