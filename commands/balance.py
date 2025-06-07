@@ -3,7 +3,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from database import firebase_ref
 from encryption import decrypt_data
-from exchanges import get_balance  # This is a normal function, not async
+from exchanges import get_balance  # Your normal (sync) function
 
 logger = get_logger(__name__)
 
@@ -17,19 +17,22 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ You're not registered. Use /register first.")
             return
 
-        # Check exchange and get encrypted keys
+        # Determine exchange
         exchange = user_data.get("exchange", "").lower()
-        if exchange == "luno":
-            api_key_encrypted = user_data.get("luno_api_key") or user_data.get("api_key")
-            secret_encrypted = user_data.get("luno_api_secret") or user_data.get("api_secret")
-        elif exchange == "binance":
-            api_key_encrypted = user_data.get("binance_api_key") or user_data.get("api_key")
-            secret_encrypted = user_data.get("binance_api_secret") or user_data.get("api_secret")
-        else:
+        if exchange not in ("luno", "binance"):
             await update.message.reply_text("❌ Unknown exchange specified in your data.")
             return
 
-        # Decrypt the keys explicitly
+        # Fetch and decrypt keys
+        api_key_encrypted = (
+            user_data.get(f"{exchange}_api_key")
+            or user_data.get("api_key")
+        )
+        secret_encrypted = (
+            user_data.get(f"{exchange}_api_secret")
+            or user_data.get("api_secret")
+        )
+
         if not api_key_encrypted or not secret_encrypted:
             await update.message.reply_text(f"❌ Missing {exchange} API keys in your account.")
             return
@@ -41,14 +44,20 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Could not decrypt your API keys.")
             return
 
-        # Fetch balance using explicit keys for the exchange
-        balances = get_balance(user_id=user_id, source=exchange, user=user_data)
+        # Build a dict with **decrypted** keys to pass to get_balance()
+        decrypted_user_data = {
+            f"{exchange}_api_key": api_key,
+            f"{exchange}_api_secret": secret,
+        }
+
+        # Fetch balance
+        balances = get_balance(user_id=user_id, source=exchange, user=decrypted_user_data)
 
         if not balances:
             await update.message.reply_text("❌ Could not fetch your balance.")
             return
 
-        # Format balance nicely
+        # Format nicely
         balance_msg = f"💰 *Your {exchange.capitalize()} Balance:*\n"
         for asset, balance in balances.items():
             balance_msg += f"• {asset.upper()}: `{balance}`\n"
