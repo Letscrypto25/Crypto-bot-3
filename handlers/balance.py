@@ -9,9 +9,15 @@ def safe_decrypt(encrypted_value):
     if not encrypted_value:
         return None
     try:
+        # If it's a bytes object, decode to string
         if isinstance(encrypted_value, bytes):
             encrypted_value = encrypted_value.decode("utf-8")
-        return decrypt_data(encrypted_value)
+        # If it's a string that looks like "b'abc123'", strip b'' part
+        if isinstance(encrypted_value, str) and encrypted_value.startswith("b'") and encrypted_value.endswith("'"):
+            encrypted_value = encrypted_value[2:-1]
+        decrypted = decrypt_data(encrypted_value)
+        print(f"[Decryption] Decrypted value: {decrypted}")
+        return decrypted
     except Exception as e:
         print(f"[Decryption Error] {e}")
         return None
