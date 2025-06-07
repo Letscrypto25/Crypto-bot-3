@@ -47,7 +47,13 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ API credentials missing or invalid. Please /register again.")
             return
 
-        balances = get_balance(user_id=user_id, source=exchange)
+        # Prepare user dict for get_balance
+        user = {
+            f"{exchange}_api_key": api_key,
+            f"{exchange}_api_secret": secret,
+        }
+
+        balances = get_balance(user_id=user_id, source=exchange, user=user)
         print(f"[Balance Handler] {exchange} balances: {balances}")
 
         if not balances:
@@ -56,7 +62,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         message = f"📊 *Your {exchange.capitalize()} Balances:*\n"
         for asset, amount in balances.items():
-            message += f"• `{asset}`: *{float(amount):.6f}*\n"
+            message += f"• `{asset.upper()}`: *{float(amount):.6f}*\n"
 
         await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
 
@@ -65,7 +71,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             fallback = db.reference(f"users/{user_id}/balance").get()
             fallback_balance = fallback if fallback is not None else 0.0
-            await update.message.reply_text(f"💰 Legacy Balance: {fallback_balance} USD")
+            await update.message.reply_text(f"💰 Legacy Balance (USD): {fallback_balance}")
         except Exception as fallback_error:
             print(f"[Fallback Error] /balance: {fallback_error}")
             await update.message.reply_text("❌ Could not fetch your balance right now.")
