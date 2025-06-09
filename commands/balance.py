@@ -1,9 +1,10 @@
 from utils.logger_utils import get_logger
 from telegram import Update
 from telegram.ext import ContextTypes
+import asyncio
 from database import firebase_ref
 from encryption import decrypt_data
-from exchanges import get_balance  # Your normal (sync) function
+from exchanges import get_balance  # Your synchronous function
 
 logger = get_logger(__name__)
 
@@ -44,14 +45,21 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Could not decrypt your API keys.")
             return
 
-        # Build a dict with **decrypted** keys to pass to get_balance()
+        # Build a dict with decrypted keys to pass to get_balance()
         decrypted_user_data = {
             f"{exchange}_api_key": api_key,
             f"{exchange}_api_secret": secret,
         }
 
-        # Fetch balance
-        balances = get_balance(user_id=user_id, source=exchange, user=decrypted_user_data)
+        # Run get_balance in executor to avoid blocking
+        loop = asyncio.get_running_loop()
+        balances = await loop.run_in_executor(
+            None,
+            get_balance,
+            user_id,
+            exchange,
+            decrypted_user_data
+        )
 
         if not balances:
             await update.message.reply_text("❌ Could not fetch your balance.")
