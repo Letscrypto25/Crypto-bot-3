@@ -5,7 +5,8 @@ from telegram.ext import ContextTypes
 from database import firebase_ref
 from encryption import encrypt_data
 
-logger_utils = get_logger(__name__)
+# Use logger for consistent logging
+logger = get_logger(__name__)
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -13,7 +14,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Validate input arguments
     if len(args) != 3:
-        await update.message.reply_text("Usage: /register <Luno or  Binance> <api_key> <secret>")
+        await update.message.reply_text("Usage: /register <Luno or Binance> <api_key> <secret>")
         return
 
     exchange, api_key, secret = args
