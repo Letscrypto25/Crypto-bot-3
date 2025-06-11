@@ -3,7 +3,7 @@ import json
 import firebase_admin
 from firebase_admin import credentials, db
 import logging
-
+from datetime import datetime
 # === Logging Setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -153,6 +153,34 @@ def get_users_with_api_keys_and_strategy():
         return []
 
 # === Get autobot status for a user ===
+
+
+def set_autobot_status(user_id: str, status: bool, source: str = "manual"):
+    """
+    Update the autobot status for a user, with timestamp and trigger source.
+
+    Args:
+        user_id (str): Telegram or system user ID.
+        status (bool): True to enable, False to disable.
+        source (str): Who/what triggered this update. Default is "manual".
+    """
+    try:
+        timestamp = datetime.utcnow().isoformat() + "Z"  # UTC ISO 8601 format
+        update_data = {
+            "autobot_status": {
+                "status": status,
+                "updated_at": timestamp,
+                "source": source
+            }
+        }
+        db.reference(f'users/{user_id}').update(update_data)
+        logger.info(f"Autobot status for user {user_id} set to {status} by {source} at {timestamp}")
+        return True
+    except Exception as e:
+        logger.error(f"Error setting autobot status for user {user_id}: {e}")
+        return False
+
+
 def get_autobot_status(user_id: str) -> bool:
     """
     Retrieve the autobot status (True/False) for a given user.
