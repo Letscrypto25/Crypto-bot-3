@@ -152,5 +152,16 @@ def get_users_with_api_keys_and_strategy():
         logger.error(f"Error fetching users with API keys and strategy: {e}")
         return []
 
-# === Additional Utility Functions as needed ===
-# (… no changes to the rest of your original functions …)
+# === Get autobot status for a user ===
+def get_autobot_status(user_id: str) -> bool:
+    """
+    Retrieve the autobot status (True/False) for a given user.
+    """
+    try:
+        status = db.reference(f'users/{user_id}/autobot/status').get()
+        if status is None:
+            return False
+        return bool(status)
+    except Exception as e:
+        logger.error(f"Error getting autobot status for user {user_id}: {e}")
+        return False
