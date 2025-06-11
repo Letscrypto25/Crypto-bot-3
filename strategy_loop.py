@@ -4,7 +4,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from database import get_all_users, get_user, get_autobot_status
+from database import get_all_users, get_user_data, get_autobot_status
 from trading_api import get_binance_price, get_luno_price, trade_on_binance, trade_on_luno
 from strategies.arbitrage import execute as run_arbitrage_strategy
 from strategies.dip_buyer import execute as run_dip_buyer
