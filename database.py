@@ -165,3 +165,34 @@ def get_autobot_status(user_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error getting autobot status for user {user_id}: {e}")
         return False
+
+#===save trades for trade command===#
+
+def save_trade(user_id: str, trade_data: dict):
+    """
+    Save a trade record for a given user.
+
+    trade_data example:
+    {
+        "trade_id": "unique_trade_id_123",
+        "timestamp": 1686489600,
+        "symbol": "BTCUSDT",
+        "side": "buy",
+        "quantity": 0.01,
+        "price": 30000,
+        "profit": 50,
+        "status": "closed"
+    }
+    """
+    try:
+        trades_ref = db.reference(f'users/{user_id}/trades')
+        # Push a new trade with unique key if no trade_id, else update existing
+        if "trade_id" in trade_data:
+            trade_id = trade_data["trade_id"]
+            trades_ref.child(trade_id).set(trade_data)
+        else:
+            # Generate a new push key if no trade_id given
+            trades_ref.push(trade_data)
+        logger.info(f"Trade saved for user {user_id} with trade_id {trade_data.get('trade_id', 'new')}")
+    except Exception as e:
+        logger.error(f"Error saving trade for user {user_id}: {e}")
