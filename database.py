@@ -32,7 +32,7 @@ initialize_firebase()
 firebase_ref = db.reference("users")
 
 # === User Management ===
-def get_user(user_id: str):
+def get_user_data(user_id: str):
     try:
         return db.reference(f'users/{user_id}').get()
     except Exception as e:
