@@ -41,7 +41,7 @@ def get_user(user_id: str):
 
 def get_all_users():
     try:
-        return db.reference('users').get()
+        return firebase_ref.get()
     except Exception as e:
         logger.error(f"Error getting all users: {e}")
         return None
@@ -61,7 +61,13 @@ def create_user(user_id: str, default_data: dict = None):
                 "binance_api_key": "",
                 "binance_api_secret": "",
                 "luno_api_key": "",
-                "luno_api_secret": ""
+                "luno_api_secret": "",
+                "strategy_config": {},
+                "notifications": {
+                    "telegram": True,
+                    "push": True,
+                    "email": False
+                }
             },
             "profit": 0
         }
@@ -117,10 +123,12 @@ def get_users_with_api_keys_and_strategy():
         valid_users = []
         for user_id, data in users_data.items():
             config = data.get("config", {})
-            if all(k in config for k in ("binance_api_key", "binance_api_secret", "luno_api_key", "luno_api_secret")):
+            autobot = data.get("autobot", {})
+            # Check if all API keys are present
+            if all(config.get(k) for k in ("binance_api_key", "binance_api_secret", "luno_api_key", "luno_api_secret")):
                 valid_users.append({
                     "user_id": user_id,
-                    "strategy": data.get("strategy", "arbitrage"),
+                    "strategy": autobot.get("strategy", "default"),
                     "risk_tolerance": data.get("risk_tolerance", 0.02),
                     "profit_target": data.get("profit_target", 50),
                     "dip_threshold": data.get("dip_threshold", -3.0),
@@ -136,7 +144,7 @@ def get_users_with_api_keys_and_strategy():
                         "push": True,
                         "email": False
                     }),
-                    "autobot": data.get("autobot", {})
+                    "autobot": autobot
                 })
         return valid_users
 
@@ -144,5 +152,5 @@ def get_users_with_api_keys_and_strategy():
         logger.error(f"Error fetching users with API keys and strategy: {e}")
         return []
 
-# === Balance & Profit Tracking, etc. ===
-# (… keep the rest of your functions the same, no change to them)
+# === Additional Utility Functions as needed ===
+# (… no changes to the rest of your original functions …)
