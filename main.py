@@ -29,7 +29,7 @@ from commands.showconfig import showconfig_command
 from commands.balance import balance_command
 from commands.register import register_command
 from commands.autobot import autobot_command
-from database import get_user, get_autobot_status, create_user
+from database import get_user_data, get_autobot_status, create_user
 from utils import send_alert, format_trade_message
 
 # === New Import for price feed ===
