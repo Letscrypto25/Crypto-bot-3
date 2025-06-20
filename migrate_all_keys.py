@@ -2,11 +2,11 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 # Replace this with your decoded Firebase credentials JSON file
-cred = credentials.Certificate("firebase_credentials.json")
+cred = credentials.Certificate("FIREBASE_CREDENTIALS_ENCODED")
 
 # Replace with your actual Firebase DB URL
 firebase_admin.initialize_app(cred, {
-    "databaseURL": "https://<your-project-id>.firebaseio.com"
+    "databaseURL": "https://https://crypto-bot-3-default-rtdb.firebaseio.com/.firebaseio.com"
 })
 
 def migrate_user_keys():
