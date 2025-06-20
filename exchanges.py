@@ -41,10 +41,14 @@ def get_luno_auth_header(user_id=None, user=None):
         if not user_id:
             raise ValueError("Must provide user_id or user data")
         user = db.reference(f"/users/{user_id}").get()
-    encrypted_key = user.get("api_key")
-    encrypted_secret = user.get("secret")
+
+    # ✅ Check luno_api_* keys first, fallback to generic api_key/secret
+    encrypted_key = user.get("luno_api_key") or user.get("api_key")
+    encrypted_secret = user.get("luno_api_secret") or user.get("secret")
+
     if not encrypted_key or not encrypted_secret:
         raise ValueError("Missing Luno API credentials.")
+
     key = decrypt_api_key(encrypted_key)
     secret = decrypt_api_key(encrypted_secret)
     auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
@@ -77,7 +81,8 @@ def get_balance(user_id: str, source: str, user=None) -> dict:
         if source == "luno":
             headers = get_luno_auth_header(user_id=user_id, user=user)
             r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
-            print("[Luno Balance] Response:", r.text)
+            print(f"[Luno Balance] Status Code: {r.status_code}")
+            print(f"[Luno Balance] Response Body: {r.text}")
             r.raise_for_status()
             data = r.json().get("balance", [])
             return {
