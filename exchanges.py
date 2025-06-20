@@ -2,18 +2,32 @@ import base64
 import requests
 from firebase_admin import db
 from binance.client import Client as BinanceClient
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 import os
-import traceback  # ✅ for full error tracebacks
+import traceback
 
 # === Fernet Setup ===
+print("🔍 DEBUG: Starting Fernet secret load...")
 SECRET_KEY = os.getenv("SECRET_KEY")
+print(f"🔍 DEBUG: SECRET_KEY is {'loaded' if SECRET_KEY else 'missing'}")
+
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY environment variable is not set")
 fernet = Fernet(SECRET_KEY.encode())
+print("🔍 DEBUG: Fernet instance initialized successfully")
 
 def decrypt_api_key(encrypted_key: str) -> str:
-    return fernet.decrypt(encrypted_key.encode()).decode()
+    print("🔍 DEBUG: Attempting to decrypt key...")
+    try:
+        decrypted = fernet.decrypt(encrypted_key.encode()).decode()
+        print("🔍 DEBUG: Decryption successful")
+        return decrypted
+    except InvalidToken:
+        print("❌ DEBUG: Invalid Fernet token - likely wrong SECRET_KEY or corrupted data")
+        raise
+    except Exception as e:
+        print(f"❌ DEBUG: Decryption failed: {e}")
+        raise
 
 # === Binance ===
 def get_binance_client(user_id, user=None):
@@ -34,6 +48,7 @@ def get_binance_price(user_id, symbol="BTCUSDT"):
         return float(ticker["price"])
     except Exception as e:
         print(f"[Binance] Error fetching price for {symbol}: {e}")
+        traceback.print_exc()
         return None
 
 # === Luno ===
@@ -63,6 +78,7 @@ def get_luno_price(user_id, pair="XBTZAR"):
         return float(r.json()["last_trade"])
     except Exception as e:
         print(f"[Luno] Error fetching price for {pair}: {e}")
+        traceback.print_exc()
         return None
 
 # === Unified Price ===
@@ -106,5 +122,5 @@ def get_balance(user_id: str, source: str, user=None) -> dict:
 
     except Exception as e:
         print(f"[Balance Fetch Error] {e}")
-        traceback.print_exc()  # ✅ log full error details
+        traceback.print_exc()
         return {}
