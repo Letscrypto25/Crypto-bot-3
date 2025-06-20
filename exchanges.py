@@ -4,6 +4,7 @@ from firebase_admin import db
 from binance.client import Client as BinanceClient
 from cryptography.fernet import Fernet
 import os
+import traceback  # ✅ for full error tracebacks
 
 # === Fernet Setup ===
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -42,7 +43,6 @@ def get_luno_auth_header(user_id=None, user=None):
             raise ValueError("Must provide user_id or user data")
         user = db.reference(f"/users/{user_id}").get()
 
-    # ✅ Check luno_api_* keys first, fallback to generic api_key/secret
     encrypted_key = user.get("luno_api_key") or user.get("api_key")
     encrypted_secret = user.get("luno_api_secret") or user.get("secret")
 
@@ -106,4 +106,5 @@ def get_balance(user_id: str, source: str, user=None) -> dict:
 
     except Exception as e:
         print(f"[Balance Fetch Error] {e}")
+        traceback.print_exc()  # ✅ log full error details
         return {}
