@@ -46,11 +46,23 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Could not decrypt your API keys.")
             return
 
-        # Prepare decrypted data to pass to get_balance()
-        decrypted_user_data = {
-            f"{exchange}_api_key": api_key,
-            f"{exchange}_api_secret": secret,
-        }
+        # Match the key names expected by get_balance()
+        if exchange == "luno":
+            decrypted_user_data = {
+                "luno_api_key": api_key,
+                "luno_api_secret": secret,
+            }
+        elif exchange == "binance":
+            decrypted_user_data = {
+                "binance_api_key": api_key,
+                "binance_api_secret": secret,
+            }
+        else:
+            await update.message.reply_text("❌ Unknown exchange. Cannot process.")
+            return
+
+        # Optional debug
+        logger.info(f"[Balance] Decrypted user data: {decrypted_user_data}")
 
         # Run get_balance (now only works with decrypted input)
         loop = asyncio.get_running_loop()
