@@ -3,7 +3,7 @@ import requests
 from cryptography.fernet import Fernet
 
 # Constants
-FERNET_KEY_PATH = "fernet.key"
+SECRET_KEY = "fernet.key"
 
 # Telegram Configuration from environment
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
