@@ -1,16 +1,17 @@
 import firebase_admin
 from firebase_admin import credentials, db
+from encryption import encrypt_data  # Only needed if keys should be encrypted
 
-# Replace this with your decoded Firebase credentials JSON file
+# Load credentials
 cred = credentials.Certificate("FIREBASE_CREDENTIALS_ENCODED")
 
-# Replace with your actual Firebase DB URL
+# Initialize Firebase (✅ fix the DB URL here)
 firebase_admin.initialize_app(cred, {
-    "databaseURL": "https://https://crypto-bot-3-default-rtdb.firebaseio.com/.firebaseio.com"
+    "databaseURL": "https://crypto-bot-3-default-rtdb.firebaseio.com"
 })
 
 def migrate_user_keys():
-    ref = db.reference("users")  # Adjust this if your structure is different
+    ref = db.reference("users")
     users = ref.get()
 
     if not users:
@@ -32,13 +33,13 @@ def migrate_user_keys():
             updates = {}
 
             if needs_luno:
-                updates["luno_api_key"] = api_key
-                updates["luno_api_secret"] = api_secret
+                updates["luno_api_key"] = encrypt_data(api_key)
+                updates["luno_api_secret"] = encrypt_data(api_secret)
                 migrated["luno"] += 1
 
             if needs_binance:
-                updates["binance_api_key"] = api_key
-                updates["binance_api_secret"] = api_secret
+                updates["binance_api_key"] = encrypt_data(api_key)
+                updates["binance_api_secret"] = encrypt_data(api_secret)
                 migrated["binance"] += 1
 
             if updates:
