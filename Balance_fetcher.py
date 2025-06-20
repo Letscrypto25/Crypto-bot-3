@@ -1,4 +1,3 @@
-
 import base64
 import requests
 from binance.client import Client
@@ -18,15 +17,21 @@ def get_binance_balance(api_key: str, api_secret: str) -> dict:
         print(f"[Binance Error] {e}")
         return {}
 
-# 🟩 Luno balance fetcher
+# 🟩 Updated Luno balance fetcher with debug info and User-Agent header
 def get_luno_balance(api_key: str, api_secret: str) -> dict:
     auth_string = f"{api_key}:{api_secret}".encode()
     auth = base64.b64encode(auth_string).decode()
-    headers = {"Authorization": f"Basic {auth}"}
+    headers = {
+        "Authorization": f"Basic {auth}",
+        "User-Agent": "Mozilla/5.0 (compatible; MyApp/1.0; +https://myapp.com)"
+    }
 
     try:
         response = requests.get("https://api.luno.com/api/1/balance", headers=headers)
+        print(f"[Luno] Response status: {response.status_code}")
+        print(f"[Luno] Response text: {response.text}")
         response.raise_for_status()
+
         data = response.json().get("balance", [])
         balances = {
             asset["asset"]: float(asset["balance"])
