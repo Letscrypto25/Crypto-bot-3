@@ -4,10 +4,10 @@ from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 import bcrypt
 
+# === Load environment variables ===
 load_dotenv()
 
-# === Symmetric Encryption Key ===
-# Generate one with: Fernet.generate_key().decode()
+# === Symmetric Encryption Key Setup ===
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 if not SECRET_KEY:
@@ -15,6 +15,7 @@ if not SECRET_KEY:
 
 try:
     fernet = Fernet(SECRET_KEY.encode())
+    print(f"[DEBUG INIT] Fernet initialized with key: {SECRET_KEY} (length: {len(SECRET_KEY)})")
 except Exception as e:
     raise ValueError(f"Invalid SECRET_KEY format. Must be base64-encoded 32 bytes: {e}")
 
@@ -34,7 +35,10 @@ def decrypt_data(encrypted_data: str) -> str:
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode(), salt)
+    print(f"[DEBUG HASH] Password hashed: {hashed.decode()}")
     return hashed.decode()
 
 def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+    result = bcrypt.checkpw(password.encode(), hashed.encode())
+    print(f"[DEBUG VERIFY] Password match: {result}")
+    return result
