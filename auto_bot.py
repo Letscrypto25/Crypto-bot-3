@@ -2,7 +2,7 @@ import logging
 from importlib import import_module
 from firebase_admin import db
 from notifications_manager import evaluate_and_notify_user
-from balance_fetcher import get_user_balance  # Correct import and function
+from exchanges import get_user_balance  # Correct import and function
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
