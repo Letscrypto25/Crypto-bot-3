@@ -1,18 +1,18 @@
 from cryptography.fernet import Fernet
 import os
 
-# Load or generate encryption key
-KEY_FILE = "encryption.key"
+# === Fernet Setup ===
+SECRET_KEY = os.getenv("SECRET_KEY")
 
-if not os.path.exists(KEY_FILE):
-    with open(KEY_FILE, "wb") as f:
-        f.write(Fernet.generate_key())
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is not set!")
 
-with open(KEY_FILE, "rb") as f:
-    ENCRYPTION_KEY = f.read()
+try:
+    fernet = Fernet(SECRET_KEY.encode())
+except Exception as e:
+    raise ValueError(f"Invalid SECRET_KEY format. Must be 32-byte base64: {e}")
 
-fernet = Fernet(ENCRYPTION_KEY)
-
+# === Encryption Helpers ===
 def encrypt_data(data: str) -> str:
     return fernet.encrypt(data.encode()).decode()
 
