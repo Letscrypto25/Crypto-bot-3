@@ -6,16 +6,25 @@ from cryptography.fernet import Fernet, InvalidToken
 import os
 import traceback
 
-# === Fernet Setup ===
+# === Fernet Setup with DEBUG ===
 print("🔍 DEBUG: Starting Fernet secret load...")
 SECRET_KEY = os.getenv("SECRET_KEY")
-print(f"🔍 DEBUG: SECRET_KEY is {'loaded' if SECRET_KEY else 'missing'}")
 
 if not SECRET_KEY:
+    print("❌ ERROR: SECRET_KEY is missing from environment.")
     raise RuntimeError("SECRET_KEY environment variable is not set")
-fernet = Fernet(SECRET_KEY.encode())
-print("🔍 DEBUG: Fernet instance initialized successfully")
 
+print(f"🔍 DEBUG: SECRET_KEY (raw): {SECRET_KEY}")
+print(f"🔍 DEBUG: Length of SECRET_KEY: {len(SECRET_KEY)}")
+
+try:
+    fernet = Fernet(SECRET_KEY.encode())
+    print("✅ Fernet instance initialized successfully")
+except Exception as e:
+    print(f"❌ ERROR: Failed to initialize Fernet: {e}")
+    raise
+
+# === Decryption Function ===
 def decrypt_api_key(encrypted_key: str) -> str:
     print("🔍 DEBUG: Attempting to decrypt key...")
     try:
