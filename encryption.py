@@ -13,14 +13,22 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise ValueError("Missing SECRET_KEY in environment variables.")
 
-fernet = Fernet(SECRET_KEY.encode())
+try:
+    fernet = Fernet(SECRET_KEY.encode())
+except Exception as e:
+    raise ValueError(f"Invalid SECRET_KEY format. Must be base64-encoded 32 bytes: {e}")
 
 # === Encryption Utilities ===
 def encrypt_data(data: str) -> str:
-    return fernet.encrypt(data.encode()).decode()
+    encrypted = fernet.encrypt(data.encode()).decode()
+    print(f"[DEBUG ENCRYPT] Raw: {data} → Encrypted: {encrypted}")
+    return encrypted
 
 def decrypt_data(encrypted_data: str) -> str:
-    return fernet.decrypt(encrypted_data.encode()).decode()
+    print(f"[DEBUG DECRYPT] Attempting to decrypt: {encrypted_data}")
+    decrypted = fernet.decrypt(encrypted_data.encode()).decode()
+    print(f"[DEBUG DECRYPT] Decrypted: {decrypted}")
+    return decrypted
 
 # === Password Hashing ===
 def hash_password(password: str) -> str:
