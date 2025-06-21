@@ -1,26 +1,40 @@
-from cryptography.fernet import Fernet
+import base64
 import os
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+import bcrypt
 
-# === Fernet Setup ===
+load_dotenv()
+
+# === Symmetric Encryption Key ===
+# Generate one with: Fernet.generate_key().decode()
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-print("🔐 [DEBUG] Loading SECRET_KEY from environment...")
 if not SECRET_KEY:
-    raise RuntimeError("❌ SECRET_KEY environment variable is not set!")
+    raise ValueError("Missing SECRET_KEY in environment variables.")
 
 try:
     fernet = Fernet(SECRET_KEY.encode())
-    print(f"✅ [DEBUG] Fernet initialized with key: {SECRET_KEY} (Length: {len(SECRET_KEY)})")
 except Exception as e:
-    raise ValueError(f"❌ Invalid SECRET_KEY format. Must be 32-byte base64: {e}")
+    raise ValueError(f"Invalid SECRET_KEY format. Must be base64-encoded 32 bytes: {e}")
 
-# === Encryption Helpers ===
+# === Encryption Utilities ===
 def encrypt_data(data: str) -> str:
     encrypted = fernet.encrypt(data.encode()).decode()
-    print(f"🔐 [ENCRYPT] Plain: {data} → Encrypted: {encrypted}")
+    print(f"[DEBUG ENCRYPT] Raw: {data} → Encrypted: {encrypted}")
     return encrypted
 
-def decrypt_data(data: str) -> str:
-    decrypted = fernet.decrypt(data.encode()).decode()
-    print(f"🔓 [DECRYPT] Encrypted: {data} → Decrypted: {decrypted}")
+def decrypt_data(encrypted_data: str) -> str:
+    print(f"[DEBUG DECRYPT] Attempting to decrypt: {encrypted_data}")
+    decrypted = fernet.decrypt(encrypted_data.encode()).decode()
+    print(f"[DEBUG DECRYPT] Decrypted: {decrypted}")
     return decrypted
+
+# === Password Hashing ===
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode(), salt)
+    return hashed.decode()
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
