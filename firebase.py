@@ -1,38 +1,31 @@
 import base64
 import json
-import json
+import os
 import firebase_admin
 from firebase_admin import credentials, db
-import os
 
-# Load Firebase credentials directly from environment variable
-firebase_creds = os.getenv("FIREBASE_CREDENTIALS_ENCODED")  # This is no longer encoded, it's the raw JSON
+# === Get Firebase credentials from environment ===
+raw_creds = os.getenv("FIREBASE_CREDENTIALS_ENCODED")
+if not raw_creds:
+    raise Exception("❌ FIREBASE_CREDENTIALS_ENCODED is not set!")
 
-if not firebase_creds:
-    raise Exception("FIREBASE_CREDENTIALS_ENCODED is not set!")
+# === Try to load raw JSON or decode if base64 ===
+try:
+    # Try plain JSON first
+    creds_dict = json.loads(raw_creds)
+    print("[DEBUG] Firebase credentials loaded as JSON.")
+except json.JSONDecodeError:
+    try:
+        # Try decoding base64
+        decoded = base64.b64decode(raw_creds).decode()
+        creds_dict = json.loads(decoded)
+        print("[DEBUG] Firebase credentials decoded from base64.")
+    except Exception as e:
+        raise Exception(f"❌ Failed to parse Firebase credentials: {e}")
 
-creds_dict = json.loads(firebase_creds)
-
-# Initialize Firebase app
+# === Initialize Firebase ===
 if not firebase_admin._apps:
     cred = credentials.Certificate(creds_dict)
     firebase_admin.initialize_app(cred, {
-        'databaseURL': os.getenv("FIREBASE_DATABASE_URL")
+        "databaseURL": os.getenv("FIREBASE_DATABASE_URL")
     })
-
-def log_trade(trade_data):
-    ref = db.reference("/trades")
-    ref.push(trade_data)
-
-def get_recent_trades(limit=10):
-    ref = db.reference("/trades")
-    snapshot = ref.order_by_key().limit_to_last(limit).get()
-    return snapshot if snapshot else {}
-
-def store_stat(path, data):
-    ref = db.reference(path)
-    ref.set(data)
-
-def get_stat(path):
-    ref = db.reference(path)
-    return ref.get()
