@@ -1,10 +1,10 @@
 import base64
+import os
+import traceback
 import requests
 from firebase_admin import db
 from binance.client import Client as BinanceClient
 from cryptography.fernet import Fernet, InvalidToken
-import os
-import traceback
 
 # === Fernet Setup with DEBUG ===
 print("🔍 DEBUG: Starting Fernet secret load...")
@@ -26,10 +26,10 @@ except Exception as e:
 
 # === Decryption Function ===
 def decrypt_api_key(encrypted_key: str) -> str:
-    print("🔍 DEBUG: Attempting to decrypt key...")
+    print(f"[DEBUG DECRYPT] Attempting to decrypt: {encrypted_key}")
     try:
         decrypted = fernet.decrypt(encrypted_key.encode()).decode()
-        print("🔍 DEBUG: Decryption successful")
+        print(f"[DEBUG DECRYPT] Decrypted: {decrypted}")
         return decrypted
     except InvalidToken:
         print("❌ DEBUG: Invalid Fernet token - likely wrong SECRET_KEY or corrupted data")
@@ -60,27 +60,24 @@ def get_binance_price(user_id, symbol="BTCUSDT"):
         traceback.print_exc()
         return None
 
-# === Luno ===
-def get_luno_auth_header(user_id=None, user=None):
-    if user is None:
-        if not user_id:
-            raise ValueError("Must provide user_id or user data")
-        user = db.reference(f"/users/{user_id}").get()
-
-    encrypted_key = user.get("luno_api_key") or user.get("api_key")
-    encrypted_secret = user.get("luno_api_secret") or user.get("secret")
-
-    if not encrypted_key or not encrypted_secret:
-        raise ValueError("Missing Luno API credentials.")
-
-    key = decrypt_api_key(encrypted_key)
-    secret = decrypt_api_key(encrypted_secret)
-    auth = base64.b64encode(f"{key}:{secret}".encode()).decode()
+# === Luno Auth Header (expects decrypted keys) ===
+def get_luno_auth_header(api_key: str, api_secret: str) -> dict:
+    print(f"[DEBUG AUTH] Using decrypted API key: {api_key[:4]}..., secret: {api_secret[:4]}...")
+    auth = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
     return {"Authorization": f"Basic {auth}"}
 
+# === Luno Price ===
 def get_luno_price(user_id, pair="XBTZAR"):
     try:
-        headers = get_luno_auth_header(user_id=user_id)
+        user = db.reference(f"/users/{user_id}").get()
+        encrypted_key = user.get("luno_api_key") or user.get("api_key")
+        encrypted_secret = user.get("luno_api_secret") or user.get("secret")
+
+        api_key = decrypt_api_key(encrypted_key)
+        api_secret = decrypt_api_key(encrypted_secret)
+
+        headers = get_luno_auth_header(api_key, api_secret)
+
         url = f"https://api.luno.com/api/1/ticker?pair={pair}"
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
@@ -103,8 +100,18 @@ def get_price(user_id, source="binance", symbol="BTCUSDT", pair="XBTZAR"):
 def get_balance(user_id: str, source: str, user=None) -> dict:
     print(f"[Balance] Fetching for user {user_id} on {source}")
     try:
+        if user is None:
+            user = db.reference(f"/users/{user_id}").get()
+
         if source == "luno":
-            headers = get_luno_auth_header(user_id=user_id, user=user)
+            enc_key = user.get("luno_api_key") or user.get("api_key")
+            enc_secret = user.get("luno_api_secret") or user.get("secret")
+
+            api_key = decrypt_api_key(enc_key)
+            api_secret = decrypt_api_key(enc_secret)
+
+            headers = get_luno_auth_header(api_key, api_secret)
+
             r = requests.get("https://api.luno.com/api/1/balance", headers=headers)
             print(f"[Luno Balance] Status Code: {r.status_code}")
             print(f"[Luno Balance] Response Body: {r.text}")
