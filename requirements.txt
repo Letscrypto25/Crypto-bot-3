@@ -2,7 +2,8 @@
 fastapi                          # Optional, only if you're using FastAPI anywhere
 Flask==2.3.3                     # Used if you're serving via Flask (e.g., webhook)
 hypercorn[quart]==0.16.0        # Async ASGI server (not mandatory unless using Quart)
-
+pydantic 
+slowapi
 # Task Queue
 celery==5.3.4
 redis==5.0.4                    # Celery broker and result backend
